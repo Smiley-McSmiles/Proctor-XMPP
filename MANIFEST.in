@@ -1,0 +1,8 @@
+include README.md LICENSE CHANGELOG.md
+include CONTRIBUTING.md SECURITY.md
+include Makefile install.sh .editorconfig
+recursive-include docs *
+recursive-include completions *
+recursive-include contrib *
+recursive-include tests *
+recursive-include .github *

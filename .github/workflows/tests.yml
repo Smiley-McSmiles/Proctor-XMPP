@@ -1,0 +1,67 @@
+name: tests
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  unit:
+    name: Python ${{ matrix.python }} on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            python: "3.8"
+          - os: ubuntu-latest
+            python: "3.12"
+          - os: ubuntu-latest
+            python: "3.13"
+          - os: macos-latest
+            python: "3.12"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+      - name: Test
+        run: python -m unittest discover -v
+
+  linux-containers:
+    name: ${{ matrix.name }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: Fedora
+            image: fedora:latest
+            install: dnf install -y python3 git tar gzip xz zstd
+          - name: Alpine
+            image: alpine:latest
+            install: apk add --no-cache python3 git tar gzip xz zstd
+          - name: Debian
+            image: debian:stable-slim
+            install: apt-get update && apt-get install -y python3 git tar gzip xz-utils zstd
+    container: ${{ matrix.image }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install runtime
+        run: ${{ matrix.install }}
+      - name: Test
+        run: python3 -m unittest discover -v
+
+  freebsd:
+    name: FreeBSD
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: vmactions/freebsd-vm@v1
+        with:
+          usesh: true
+          prepare: |
+            pkg install -y python3
+            PYVER=$(python3 -c 'import sys; print("%d%d" % sys.version_info[:2])')
+            pkg install -y py${PYVER}-sqlite3
+          run: python3 -m unittest discover -v

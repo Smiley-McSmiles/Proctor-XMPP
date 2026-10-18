@@ -1,0 +1,11 @@
+[Unit]
+Description=Daily Proctor backup timer
+
+[Timer]
+OnCalendar=*-*-* 03:30:00
+Persistent=true
+RandomizedDelaySec=20m
+Unit=proctor-backup.service
+
+[Install]
+WantedBy=timers.target

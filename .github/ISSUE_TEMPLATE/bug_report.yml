@@ -1,0 +1,69 @@
+name: Bug report
+description: Report a backup, restore, migration, detection or provisioning problem
+title: "[bug]: "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting a problem. Do not paste real backups, private keys,
+        passwords or production user data. Redact hostnames if needed.
+  - type: textarea
+    id: description
+    attributes:
+      label: Description
+      description: What happened, and what did you expect?
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Proctor version
+      description: Output of `proctor version`
+      placeholder: proctor 1.1.0 (Python 3.12.x)
+    validations:
+      required: true
+  - type: input
+    id: platform
+    attributes:
+      label: OS / init system / Python
+      description: For example Fedora 44 systemd Python 3.12, or FreeBSD 14.1 rc Python 3.11
+    validations:
+      required: true
+  - type: input
+    id: prosody
+    attributes:
+      label: Prosody version and storage
+      description: Output of `proctor discover` or `prosodyctl about`; storage backend (internal_hashed, SQLite, PostgreSQL, MySQL)
+  - type: textarea
+    id: command
+    attributes:
+      label: Command and options
+      description: The exact Proctor command, including `--dry-run`/`--install-missing` flags
+      render: shell
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant output
+      description: stderr, error text, journal or web-server config test output. Redact secrets.
+      render: shell
+    validations:
+      required: true
+  - type: textarea
+    id: discover
+    attributes:
+      label: proctor discover --json
+      description: Paste redacted output if this is a detection/path/service problem.
+      render: json
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Checks
+      options:
+        - label: I searched existing issues.
+          required: true
+        - label: I removed credentials, private keys and user data from this report.
+          required: true
+        - label: I can reproduce this with a synthetic setup or include a minimal reproduction.

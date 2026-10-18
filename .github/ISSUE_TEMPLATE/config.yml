@@ -1,0 +1,11 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Documentation
+    url: https://github.com/Smiley-McSmiles/Proctor-XMPP#documentation
+    about: Setup, migration, backup format and troubleshooting
+  - name: Security report
+    url: https://github.com/Smiley-McSmiles/Proctor-XMPP/security/advisories/new
+    about: Report vulnerabilities privately
+  - name: Questions and migration reports
+    url: https://github.com/Smiley-McSmiles/Proctor-XMPP/issues
+    about: Ask for help or share a platform/migration result

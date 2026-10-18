@@ -1,0 +1,13 @@
+[Unit]
+Description=Proctor backup of the Prosody XMPP server
+Documentation=man:proctor(1)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+Nice=10
+IOSchedulingClass=best-effort
+IOSchedulingPriority=7
+ExecStart=/usr/local/bin/proctor backup --quiet
+PrivateTmp=true

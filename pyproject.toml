@@ -1,0 +1,44 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "proctor-xmpp"
+version = "1.1.0"
+description = "Back up, restore and migrate a Prosody XMPP server"
+readme = "README.md"
+requires-python = ">=3.8"
+license = {text = "MIT"}
+authors = [{name = "Proctor contributors"}]
+keywords = ["xmpp", "prosody", "backup", "restore", "migration", "sysadmin"]
+classifiers = [
+  "Environment :: Console",
+  "Intended Audience :: System Administrators",
+  "License :: OSI Approved :: MIT License",
+  "Operating System :: POSIX :: Linux",
+  "Operating System :: BSD :: FreeBSD",
+  "Operating System :: BSD :: OpenBSD",
+  "Operating System :: BSD :: NetBSD",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.8",
+  "Programming Language :: Python :: 3.9",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+  "Topic :: Communications :: Chat",
+  "Topic :: System :: Archiving :: Backup",
+]
+
+[project.urls]
+Homepage = "https://github.com/Smiley-McSmiles/Proctor-XMPP"
+Documentation = "https://github.com/Smiley-McSmiles/Proctor-XMPP#readme"
+Repository = "https://github.com/Smiley-McSmiles/Proctor-XMPP"
+Issues = "https://github.com/Smiley-McSmiles/Proctor-XMPP/issues"
+Changelog = "https://github.com/Smiley-McSmiles/Proctor-XMPP/blob/main/CHANGELOG.md"
+
+[project.scripts]
+proctor = "proctor.cli:main"
+
+[tool.setuptools]
+packages = ["proctor"]
