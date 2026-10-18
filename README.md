@@ -91,6 +91,29 @@ PostgreSQL, `mariadb-client`/`mysql-client` for MySQL. Proctor checks these in
 
 ---
 
+## Packaging
+
+`package.sh` builds release artifacts without requiring the target distribution:
+
+```sh
+./package.sh --all
+```
+
+It produces, in `dist/`:
+
+- `proctor-xmpp-<version>.tar.gz` — portable source tarball with `install.sh`
+- `proctor-xmpp_<version>_all.deb` — Debian/Ubuntu/Mint
+- `proctor-xmpp-<version>-1.<dist>.noarch.rpm` — Fedora/RHEL/openSUSE
+- `proctor-xmpp-<version>-1-any.pkg.tar.xz` — Arch Linux
+- `proctor-xmpp-<version>_1.noarch.xbps` — Void Linux, when `xbps-create` is present
+- `dist/recipes/` — RPM spec, PKGBUILD, Void template, Alpine APKBUILD and OpenBSD port
+- `dist/SHA256SUMS`
+
+Targets can be selected individually (`./package.sh deb arch`), the RPM can be
+built in a container (`./package.sh --container --rpm`), and `--version X.Y.Z`
+updates the version everywhere before building. Missing build tools skip only
+that target. See [docs/PACKAGING.md](docs/PACKAGING.md).
+
 ## Quick start
 
 ```sh
@@ -504,6 +527,7 @@ retention.
 ## Documentation
 
 - [docs/SETUP.md](docs/SETUP.md) — interactive Prosody/nginx/Apache/certbot setup
+- [docs/PACKAGING.md](docs/PACKAGING.md) — native packages, tarball and release artifacts
 - [docs/MIGRATION.md](docs/MIGRATION.md) — server migration runbook
 - [docs/BACKUP-FORMAT.md](docs/BACKUP-FORMAT.md) — archive/manifest specification
 - [docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md) — common failures

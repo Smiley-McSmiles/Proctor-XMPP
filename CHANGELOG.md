@@ -30,3 +30,5 @@ Initial release.
 - `--webserver`, `--certbot`, `--email`, `--proxy-http` restore/migrate options
   and `init --setup`.
 - Stdlib-only Python 3.8+ implementation, 55-case unittest suite and CI matrix.
+- Multi-platform `package.sh`: portable tarball, Debian/RPM/Arch/Void packages,
+  Alpine/OpenBSD recipes and `dist/SHA256SUMS`.
