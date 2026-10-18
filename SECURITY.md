@@ -6,7 +6,7 @@ and decryption keys as sensitive.
 
 ## Supported versions
 
-Security fixes are provided for the latest 1.1.x release and the `main` branch.
+Security fixes are provided for the latest 1.0.x release and the `main` branch.
 
 ## Reporting a vulnerability
 
