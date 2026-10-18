@@ -21,8 +21,8 @@ jobs:
           - os: macos-latest
             python: "3.12"
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v7
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python }}
       - name: Test
@@ -46,7 +46,7 @@ jobs:
             install: apt-get update && apt-get install -y python3 git tar gzip xz-utils zstd
     container: ${{ matrix.image }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Install runtime
         run: ${{ matrix.install }}
       - name: Test
@@ -56,7 +56,7 @@ jobs:
     name: FreeBSD
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: vmactions/freebsd-vm@v1
         with:
           usesh: true
