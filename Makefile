@@ -1,7 +1,8 @@
 PREFIX ?= /usr/local
+DESTDIR ?=
 PYTHON ?= python3
 
-.PHONY: test compile install uninstall man clean
+.PHONY: test compile install uninstall package man clean
 
 test:
 	$(PYTHON) -m unittest discover -v
@@ -10,15 +11,18 @@ compile:
 	$(PYTHON) -m compileall -q proctor tests
 
 install:
-	PREFIX=$(PREFIX) PYTHON=$(PYTHON) ./install.sh
+	PREFIX=$(PREFIX) DESTDIR=$(DESTDIR) PYTHON=$(PYTHON) ./install.sh
+
+package:
+	./package.sh --all
 
 uninstall:
-	rm -f $(PREFIX)/bin/proctor
-	rm -rf $(PREFIX)/lib/proctor
-	rm -f $(PREFIX)/share/man/man1/proctor.1
-	rm -f $(PREFIX)/share/bash-completion/completions/proctor
-	rm -f $(PREFIX)/share/zsh/site-functions/_proctor
-	rm -f $(PREFIX)/share/fish/vendor_completions.d/proctor.fish
+	rm -f $(DESTDIR)$(PREFIX)/bin/proctor
+	rm -rf $(DESTDIR)$(PREFIX)/lib/proctor
+	rm -f $(DESTDIR)$(PREFIX)/share/man/man1/proctor.1
+	rm -f $(DESTDIR)$(PREFIX)/share/bash-completion/completions/proctor
+	rm -f $(DESTDIR)$(PREFIX)/share/zsh/site-functions/_proctor
+	rm -f $(DESTDIR)$(PREFIX)/share/fish/vendor_completions.d/proctor.fish
 
 man: docs/proctor.1
 
