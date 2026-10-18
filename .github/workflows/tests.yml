@@ -21,7 +21,7 @@ jobs:
           - os: macos-latest
             python: "3.12"
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python }}
@@ -46,17 +46,39 @@ jobs:
             install: apt-get update && apt-get install -y python3 git tar gzip xz-utils zstd
     container: ${{ matrix.image }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Install runtime
         run: ${{ matrix.install }}
       - name: Test
         run: python3 -m unittest discover -v
 
+  packaging:
+    name: Packaging
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Build portable packages
+        run: ./package.sh --tar --deb --arch --recipes
+      - name: Verify tarball install
+        run: |
+          tmp=$(mktemp -d)
+          tar -xzf dist/proctor-xmpp-*.tar.gz -C "$tmp"
+          PREFIX="$tmp/usr" "$tmp"/proctor-xmpp-*/install.sh
+          "$tmp/usr/bin/proctor" version
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: proctor-packages
+          path: dist/
+
   freebsd:
     name: FreeBSD
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: vmactions/freebsd-vm@v1
         with:
           usesh: true
