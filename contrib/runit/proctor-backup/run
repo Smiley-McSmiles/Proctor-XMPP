@@ -1,0 +1,11 @@
+#!/bin/sh
+# Example: run Proctor once a day under runit (Void) without cron.
+#
+# Install as /etc/sv/proctor-backup/run and link to /var/service, or simply
+# use cron/vixie-cron. This loop runs at boot and every 24 hours; for a fixed
+# 03:30 window use cron instead.
+exec 2>&1
+while true; do
+    proctor backup --quiet
+    sleep 86400
+done

@@ -1,0 +1,5 @@
+# Managed by proctor: daily Prosody backup.
+# On BSD systems, add the same line to /etc/crontab instead of /etc/cron.d.
+SHELL=/bin/sh
+PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+30 3 * * * root /usr/local/bin/proctor backup --quiet >> /var/log/proctor-backup.log 2>&1

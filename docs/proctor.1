@@ -1,0 +1,384 @@
+.TH PROCTOR 1 "October 2026" "proctor 1.1.0" "User Commands"
+.SH NAME
+proctor \- back up, restore and migrate a Prosody XMPP server
+.SH SYNOPSIS
+.B proctor
+[\fIOPTIONS\fR] \fICOMMAND\fR [\fICOMMAND OPTIONS\fR]
+.SH DESCRIPTION
+.B proctor
+takes consistent, verified backups of a Prosody XMPP installation and restores
+or migrates them onto another Linux distribution or BSD system.
+It parses the real Prosody configuration instead of assuming a distribution
+layout, detects the service manager, backs up filesystem data and
+SQLite/PostgreSQL/MySQL storage, preserves ownership and certificates, and
+rewrites absolute paths when moving to a host with a different layout.
+.PP
+Backups are tar archives (gzip, xz, zstd or uncompressed) with a JSON manifest,
+per-member SHA-256 checksums and an optional age or GnuPG encryption layer.
+A repository stores archives, sidecar manifests, checksums, an index and an
+audit log.
+.SH OPTIONS
+The following options may appear before or after the command.
+.TP
+.BR \-\-config " " \fIFILE\fR
+Use this Proctor JSON configuration file.
+.TP
+.BR \-\-repo " " \fIDIR\fR
+Use this backup repository directory.
+.TP
+.B \-\-json
+Write machine-readable JSON to standard output. Progress and warnings remain on
+standard error.
+.TP
+.B \-\-quiet
+Suppress progress messages.
+.TP
+.BR \-v ", " \-\-verbose
+Increase detail. Repeat for debug output.
+.TP
+.B \-\-no\-color
+Disable coloured output. The
+.B NO_COLOR
+environment variable has the same effect.
+.TP
+.BR \-y ", " \-\-yes
+Assume yes for confirmation prompts. Required for non-interactive destructive
+commands.
+.SH COMMANDS
+.TP
+.B init
+Create the JSON configuration and a mode-0700 repository. Options:
+.BR \-\-path " " \fIFILE\fR,
+.BR \-\-repo " " \fIDIR\fR,
+.BR \-\-force ,
+.BR \-\-print ,
+.BR \-\-setup ,
+.BR \-\-domain " " \fIDOMAIN\fR,
+.BR \-\-webserver " " \fIauto|none|nginx|apache\fR,
+.BR \-\-certbot " " \fIauto|yes|no\fR,
+.BR \-\-email " " \fIADDRESS\fR,
+.BR \-\-prosody\-config " " \fIFILE\fR.
+.TP
+.B discover
+Show the detected operating system, init system, Prosody paths, storage backend,
+database, user/group, virtual hosts and enabled modules.
+.TP
+.B doctor
+Run health checks: privileges, paths, service manager, database clients,
+certificate expiry, encryption tools, repository permissions, free space and
+backup freshness. Exits non-zero if a check fails.
+.TP
+.B setup
+Detect and interactively install/configure Prosody, nginx or Apache, certbot,
+TLS and the XMPP domains. Existing Prosody config is backed up before being
+replaced. Options:
+.BR \-\-domain " " \fIDOMAIN\fR,
+.BR \-\-admin " " \fIJID\fR,
+.BR \-\-webserver " " \fIauto|none|nginx|apache\fR,
+.BR \-\-certbot " " \fIauto|yes|no\fR,
+.BR \-\-email " " \fIADDRESS\fR,
+.BR \-\-storage " " \fIinternal_hashed|sqlite\fR,
+.BR \-\-proxy\-http ,
+.BR \-\-no\-proxy\-http ,
+.BR \-\-no\-start ,
+.BR \-\-dry\-run ,
+.BR \-\-force ,
+.BR \-\-prosody\-config " " \fIFILE\fR.
+.TP
+.B backup
+Create a backup. By default Prosody is stopped briefly for a consistent
+snapshot and restarted even if the backup fails. Use
+.B \-\-live
+for an online backup. Options:
+.BR \-\-live ,
+.BR \-\-include\-logs ,
+.BR \-\-include\-system ,
+.BR \-\-letsencrypt " " \fIauto|always|never\fR,
+.BR \-\-compression " " \fIgz|xz|zstd|none\fR,
+.BR \-\-encrypt ,
+.BR \-\-verify ,
+.BR \-\-skip\-database ,
+.BR \-\-skip\-unreadable ,
+.BR \-\-note " " \fITEXT\fR,
+.BR \-\-tag " " \fITAG\fR,
+.BR \-\-only " " \fICOMPONENT[,..]\fR,
+.BR \-\-exclude " " \fICOMPONENT[,..]\fR,
+.BR \-\-exclude\-path " " \fIPATH\fR,
+.BR \-\-include\-path " " \fIPATH\fR,
+.BR \-\-prosody\-config " " \fIFILE\fR.
+.TP
+.BR list " (" ls ")"
+List backups with id, time, source, size, encryption, user count and note.
+.TP
+.BR info " " \fIID\fR
+Show the backup manifest summary.
+.TP
+.BR verify " " \fIID\fR
+Verify the archive checksum, the embedded manifest against the sidecar, and the
+type, size and SHA-256 of every member. Use
+.B \-\-quick
+to check only the outer checksum.
+.TP
+.BR users " " \fIID\fR
+List XMPP accounts in a backup. Options:
+.BR \-\-domain " " \fIDOMAIN\fR,
+.BR \-\-limit " " \fIN\fR,
+.BR \-\-all .
+.TP
+.BR restore " " \fIID\fR
+Restore onto this host. The archive is verified before any change. By default a
+safety backup of the target is created and Prosody is stopped. Options:
+.BR \-\-dry\-run ,
+.BR \-\-only " " \fICOMPONENTS\fR,
+.BR \-\-exclude " " \fICOMPONENTS\fR,
+.BR \-\-keep\-config ,
+.BR \-\-skip\-database ,
+.BR \-\-no\-verify ,
+.BR \-\-no\-safety\-backup ,
+.BR \-\-start ,
+.BR \-\-no\-start ,
+.BR \-\-map " " \fIOLD=NEW\fR,
+.BR \-\-no\-rewrite\-config ,
+.BR \-\-no\-overwrite ,
+.BR \-\-force ,
+.BR \-\-prosody\-config " " \fIFILE\fR,
+.BR \-\-install\-missing ,
+.BR \-\-no\-install\-missing ,
+.BR \-\-webserver " " \fIauto|none|nginx|apache\fR,
+.BR \-\-certbot " " \fIauto|yes|no\fR,
+.BR \-\-email " " \fIADDRESS\fR,
+.BR \-\-admin " " \fIJID\fR,
+.BR \-\-proxy\-http ,
+.BR \-\-no\-proxy\-http .
+.TP
+.BR migrate " " \fIID\fR
+Same engine as
+.BR restore ,
+with a migration report and post-move checklist. Intended for a new host.
+.TP
+.BR export " " \fIID\fR " " \fB\-o\fR " " \fIFILE\fR
+Write a portable bundle containing the archive, manifest and checksum.
+.B \-\-force
+overwrites an existing output file.
+.TP
+.BR import " " \fIFILE\fR
+Import a bundle or raw archive into the repository. Options:
+.BR \-\-manifest " " \fIFILE\fR,
+.BR \-\-verify .
+.TP
+.BR diff " " \fIID\fR
+Compare a backup's paths, storage, version and user count with this host.
+.TP
+.B prune
+Apply grandfather-father-son retention. It is a dry run unless
+.B \-\-apply
+is given. Options:
+.BR \-\-keep\-last " " \fIN\fR,
+.BR \-\-keep\-daily " " \fIN\fR,
+.BR \-\-keep\-weekly " " \fIN\fR,
+.BR \-\-keep\-monthly " " \fIN\fR.
+.TP
+.BR delete " " \fIID\fR
+Delete one backup.
+.B \-\-dry\-run
+shows what would be removed.
+.TP
+.B schedule
+Install, remove or show a daily backup schedule. Options:
+.BR \-\-install ,
+.BR \-\-remove ,
+.BR \-\-show ,
+.BR \-\-at " " \fIHH:MM\fR,
+.BR \-\-type " " \fIauto|systemd|cron\fR,
+.BR \-\-cron\-file " " \fIFILE\fR,
+.BR \-\-live ,
+.BR \-\-command " " \fICOMMAND\fR.
+.TP
+.BR history
+Show the repository audit log.
+.B \-\-limit
+controls the number of records.
+.TP
+.B config
+Show the effective configuration with password-like fields redacted.
+.TP
+.B version
+Show the Proctor version and Python version.
+.SH PROVISIONING
+When Prosody is missing on a restore or migration target, Proctor can install
+the native Prosody package and, if the backup recorded one, the nginx or Apache
+web server plus certbot. It asks before installing unless
+.B \-\-install\-missing
+is given. Interactive
+.B setup
+asks for the XMPP domains, admin JID, web server, proxy paths, Let's Encrypt
+email and storage backend, then writes a generated Prosody configuration and an
+XMPP reverse-proxy vhost. Certbot uses the HTTP-01 webroot flow.
+.PP
+Without
+.BR \-\-install\-missing ,
+non-interactive restores only restore files and report missing packages.
+.SH COMPONENTS
+The values accepted by
+.B \-\-only
+and
+.B \-\-exclude
+are:
+.BR config ,
+.BR certs ,
+.BR data ,
+.BR plugins ,
+.BR letsencrypt ,
+.BR logs ,
+.BR system ,
+.BR extra ,
+.BR database .
+.PP
+By default logs are excluded. Certificates inside the config directory are part
+of
+.BR config ;
+certificate directories elsewhere are
+.BR certs ;
+referenced Let's Encrypt trees are
+.BR letsencrypt .
+.SH FILES
+.TP
+.I /etc/proctor/config.json
+System configuration when running as root.
+.TP
+.I ~/.config/proctor/config.json
+Per-user configuration.
+.TP
+.I /var/backups/proctor
+Default repository for root.
+.TP
+.I ~/.local/share/proctor/backups
+Default repository for a non-root user.
+.TP
+.I /etc/systemd/system/proctor-backup.service
+and
+.I /etc/systemd/system/proctor-backup.timer
+Installed by
+.BR "proctor schedule \-\-install" .
+.TP
+.I /etc/cron.d/proctor
+Cron fallback on systems with a cron.d directory.
+.TP
+.I /etc/nginx/conf.d/proctor-xmpp.conf
+or
+.I /etc/nginx/sites-available/proctor-xmpp.conf
+Generated nginx reverse proxy.
+.TP
+.I /etc/apache2/sites-available/proctor-xmpp.conf
+or
+.I /etc/httpd/conf.d/proctor-xmpp.conf
+Generated Apache reverse proxy.
+.TP
+.I /etc/letsencrypt
+Certbot account, renewal and live certificate trees.
+.SH EXIT STATUS
+.TP
+.B 0
+Success.
+.TP
+.B 1
+General failure, including failed health checks and post-backup restart.
+.TP
+.B 2
+Usage or configuration error (including confirmation missing).
+.TP
+.B 3
+Environment or detection error.
+.TP
+.B 4
+Integrity or verification failure.
+.TP
+.B 5
+External command failure (database client, encryption tool, service manager).
+.TP
+.B 6
+Permission denied.
+.TP
+.B 7
+Aborted by the user or interrupt.
+.SH EXAMPLES
+Create and verify a consistent backup:
+.PP
+.nf
+.RS
+sudo proctor backup \-\-verify
+.RE
+.fi
+.PP
+Online backup with encryption:
+.PP
+.nf
+.RS
+sudo proctor backup \-\-live \-\-encrypt \-\-tag protected
+.RE
+.fi
+.PP
+Migrate to a host with FreeBSD paths:
+.PP
+.nf
+.RS
+sudo proctor import site.proctorbundle \-\-verify
+sudo proctor migrate latest \-\-dry\-run \-\-install\-missing
+sudo proctor migrate latest \-\-yes \-\-install\-missing \\
+  \-\-map /etc/prosody=/usr/local/etc/prosody \\
+  \-\-map /var/lib/prosody=/var/db/prosody
+.RE
+.fi
+.PP
+Restore only user data and database, keeping the target config:
+.PP
+.nf
+.RS
+sudo proctor restore latest \-\-yes \-\-keep\-config \-\-only data,database
+.RE
+.fi
+.PP
+Guided install of Prosody, nginx and certbot:
+.PP
+.nf
+.RS
+sudo proctor setup \-\-domain example.com \\
+  \-\-webserver nginx \-\-certbot yes \-\-email admin@example.com
+.RE
+.fi
+.PP
+Daily schedule at 03:30:
+.PP
+.nf
+.RS
+sudo proctor schedule \-\-install \-\-at 03:30
+.RE
+.fi
+.SH SECURITY
+Backups contain private keys, password hashes, database credentials and user
+data. Store the repository on a protected filesystem and encrypt off-site copies
+with
+.B \-\-encrypt
+(age or GnuPG).
+.PP
+Restores verify the archive first, reject paths that escape the target, reject
+device nodes, refuse to write through symlinked parents unless
+.B \-\-force
+is given, and write files atomically. Proctor is a root administration tool and
+does not protect against an administrator deliberately restoring a malicious
+bundle.
+.SH LIMITATIONS
+Changing the XMPP domain (JIDs) is not supported. POSIX ACLs and extended
+attributes are not preserved. Database engine conversion is delegated to
+Prosody's own migration tooling. PostgreSQL and MySQL roles/databases must
+already exist on the target.
+.SH SEE ALSO
+.BR prosody (1),
+.BR prosodyctl (1),
+.BR age (1),
+.BR gpg (1),
+.BR tar (1)
+.PP
+Documentation in
+.I docs/
+and the project README.
