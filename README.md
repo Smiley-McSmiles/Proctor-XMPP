@@ -17,9 +17,9 @@ It can also provision a bare host: detect missing Prosody, nginx/Apache and
 certbot, install them after confirmation, configure XMPP domains and TLS, and
 reproduce the proxy/certificate shape recorded in a backup.
 
-**Repository:** <https://github.com/Smiley-McSmiles/Proctor-XMPP>  
-**Issues:** <https://github.com/Smiley-McSmiles/Proctor-XMPP/issues>  
-**Latest release:** 1.1.0
+- **Repository:** <https://github.com/Smiley-McSmiles/Proctor-XMPP>
+- **Issues:** <https://github.com/Smiley-McSmiles/Proctor-XMPP/issues>
+- **Latest release:** 1.1.0
 
 [Install](#install) · [Quick start](#quick-start) · [Setup a new server](#set-up-a-new-server-interactively) · [Migrate](docs/MIGRATION.md) · [Commands](#commands) · [Documentation](#documentation)
 
