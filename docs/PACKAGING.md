@@ -68,7 +68,8 @@ RPM builds need `rpmbuild`. On a non-RPM host:
 ```
 
 This uses podman or docker with a Fedora image. Override the image with
-`PKG_IMAGE=...`. RPMs, debs and tarballs are copied back to `dist/`.
+`PKG_IMAGE=...`. Packages and tarballs produced by the selected targets are
+copied back to `dist/`.
 
 ## Package layout
 
