@@ -4,6 +4,7 @@ import json
 import os
 import shutil
 import subprocess
+import sys
 import tempfile
 import unittest
 from types import SimpleNamespace
@@ -42,10 +43,12 @@ class ServiceControllerTests(unittest.TestCase):
 
     def test_custom_commands(self):
         controller = ServiceController(self._host("unknown"), "xmpp", config={
-            "commands": {"start": ["/bin/true", "{name}"], "stop": "stop-xmpp {name}"}
+            "commands": {"start": [sys.executable, "-c", "pass", "{name}"],
+                         "stop": "stop-xmpp {name}"}
         })
         self.assertTrue(controller.available)
-        self.assertEqual(controller.command("start"), ["/bin/true", "xmpp"])
+        self.assertEqual(controller.command("start"),
+                         [sys.executable, "-c", "pass", "xmpp"])
         self.assertEqual(controller.command("stop"), ["stop-xmpp", "xmpp"])
         self.assertTrue(controller.start())
 
