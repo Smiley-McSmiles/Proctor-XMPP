@@ -181,7 +181,7 @@ Working CLI, tests, README quickstart, migration runbook, backup format spec,
 man page, systemd/cron/OpenRC/runit examples, bash/zsh completions, installer,
 pyproject, Makefile and CI matrix.
 
-## 11. Provisioning (v1.1)
+## 11. Provisioning
 
 - Detect whether Prosody, nginx/Apache and certbot are installed.
 - Interactive `proctor setup` asks for domains, admin, web server, proxy paths,

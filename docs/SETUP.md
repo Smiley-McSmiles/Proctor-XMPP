@@ -123,7 +123,7 @@ modified.
 
 ## Migrating to a host without Prosody
 
-A backup created by Proctor 1.1+ records the source web server kind, whether it
+A backup created by Proctor 1.0+ records the source web server kind, whether it
 proxied XMPP HTTP paths, the proxy paths, and Let's Encrypt certificate names.
 
 ```sh
