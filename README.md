@@ -146,8 +146,8 @@ The prompts cover:
 
 It then refreshes package indexes, installs the native packages, writes
 `prosody.cfg.lua`, generates a reverse-proxy vhost, obtains certificates, grants
-the Prosody user access to Certbot's private keys, enables/starts the services,
-and registers the admin. Existing Prosody config is backed up to
+the Prosody user access to Certbot's private keys (including `/etc/letsencrypt`
+itself), enables/starts the services, and registers the admin. Existing Prosody config is backed up to
 `*.pre-proctor-<timestamp>` before being replaced.
 
 Non-interactive example:
