@@ -535,6 +535,14 @@ def _restore_locked(config, repository, entry, manifest, target, installed, mapp
                                           ))
             report["webserver"] = web_result
 
+        if prepared and prepared.get("turn"):
+            report["turn"] = _restore_turn(
+                config, manifest, prepared, options, reporter,
+                Prompter(assume_yes=bool(options.assume_yes
+                                          and options.install_missing)),
+                prepared.get("web"),
+            )
+
         should_start = options.start
         if should_start is None:
             should_start = bool(was_running) or bool(
@@ -594,6 +602,27 @@ def _restore_locked(config, repository, entry, manifest, target, installed, mapp
         shutil.rmtree(workdir, ignore_errors=True)
 
 
+def _restore_turn(config, manifest, prepared, options, reporter, prompter, web):
+    """Reproduce or repair the coturn side of a migrated TURN setup."""
+    from .turn import detect_coturn, setup_turn
+    source_turn = (manifest.get("source") or {}).get("turn") or {}
+    turn_options = copy.copy(options)
+    turn_options.turn = "yes"
+    turn_options.turn_secret = prepared.get("turn_secret") or turn_options.turn_secret
+    turn = detect_coturn()
+    if turn.exists and not getattr(turn_options, "force", False) \
+            and not (options.assume_yes and options.install_missing):
+        reporter.info("coturn is already configured; repairing access/firewall only")
+    domains = prepared.get("domains") or []
+    return setup_turn(
+        config, turn_options, reporter, prompter, domains, web,
+        prepared.get("certbot"),
+        email=options.email,
+        cert_name=prepared.get("cert_name"),
+        realm=prepared.get("turn_realm"),
+    )
+
+
 def _prepared_summary(prepared):
     if not prepared:
         return None
@@ -604,6 +633,8 @@ def _prepared_summary(prepared):
         "certbot": prepared.get("certbot"),
         "certbot_installed": prepared.get("certbot_installed"),
         "issue_certbot": prepared.get("issue_certbot"),
+        "turn": prepared.get("turn"),
+        "turn_realm": prepared.get("turn_realm"),
         "domains": prepared.get("domains"),
         "cert_name": prepared.get("cert_name"),
         "proxy": prepared.get("proxy"),

@@ -105,6 +105,7 @@ def run_doctor(config, repository, reporter, check_config=True):
         _certificate_checks(install, add)
         if db_is_configured(install.sql, install.storage):
             _database_checks(install, add)
+        _turn_checks(config, install, add)
 
     controller = ServiceController(
         host, name=config.prosody.get("service") or "prosody",
@@ -274,6 +275,20 @@ def _certificate_checks(install, add):
         add("certificate-expiry", CHECK_WARN, "expiring soon: %s" % ", ".join(expiring))
     else:
         add("certificate-expiry", CHECK_OK, "%d certificate(s) valid for 30+ days" % valid)
+
+
+def _turn_checks(config, install, add):
+    """coturn / mod_turn_external health, only when TURN is in use."""
+    try:
+        from .turn import detect_coturn, turn_checks
+    except ImportError:
+        return
+    turn = detect_coturn()
+    enabled = getattr(install, "modules_enabled", []) or []
+    if not turn.exists and "turn_external" not in enabled and not which("turnserver"):
+        return
+    for name, status, detail in turn_checks(config, install):
+        add(name, status, detail)
 
 
 def _certificate_expiry(path):
