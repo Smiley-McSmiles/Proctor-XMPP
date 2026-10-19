@@ -356,7 +356,8 @@ class ProvisioningTests(unittest.TestCase):
         with open(nginx_conf) as handle:
             text = handle.read()
         self.assertIn("authenticator = webroot", text)
-        self.assertIn("webroot_path = %s" % webroot, text)
+        self.assertIn("webroot_path = %s," % webroot, text)
+        self.assertNotIn("installer = nginx", text)
         with open(dns_conf) as handle:
             self.assertIn("dns-cloudflare", handle.read())
 

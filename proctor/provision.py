@@ -1985,8 +1985,13 @@ def configure_renewal_webroot(dry_run=False):
                 output.append("authenticator = webroot\n")
                 saw_auth = True
                 continue
+            if in_params and stripped.startswith("installer"):
+                # The old nginx/Apache installer plugin may not be installed
+                # on the migration target. proctor's deploy hook reloads the
+                # services instead.
+                continue
             if in_params and stripped.startswith("webroot_path"):
-                output.append("webroot_path = %s\n" % WEBROOT)
+                output.append("webroot_path = %s,\n" % WEBROOT)
                 saw_webroot = True
                 continue
             output.append(line)
@@ -1995,7 +2000,7 @@ def configure_renewal_webroot(dry_run=False):
         if not saw_auth:
             output.append("authenticator = webroot\n")
         if not saw_webroot:
-            output.append("webroot_path = %s\n" % WEBROOT)
+            output.append("webroot_path = %s,\n" % WEBROOT)
         try:
             atomic_write(path, "".join(output).encode("utf-8"), mode=0o600)
             changed += 1
