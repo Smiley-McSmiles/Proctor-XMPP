@@ -141,11 +141,13 @@ The prompts cover:
 - whether to proxy BOSH / WebSocket / HTTP upload,
 - whether to obtain a Let's Encrypt certificate with certbot and the email,
 - the Prosody storage backend (internal hashed or SQLite),
-- an admin password (hidden input).
+- an admin password (hidden input),
+- whether to open ports when UFW/firewalld is active.
 
-It then installs the native packages, writes `prosody.cfg.lua`, generates a
-reverse-proxy vhost, obtains certificates, enables/starts the services, and
-registers the admin. Existing Prosody config is backed up to
+It then refreshes package indexes, installs the native packages, writes
+`prosody.cfg.lua`, generates a reverse-proxy vhost, obtains certificates, grants
+the Prosody user access to Certbot's private keys (including `/etc/letsencrypt`
+itself), enables/starts the services, and registers the admin. Existing Prosody config is backed up to
 `*.pre-proctor-<timestamp>` before being replaced.
 
 Non-interactive example:
@@ -154,7 +156,7 @@ Non-interactive example:
 sudo proctor setup --yes \
   --domain example.com \
   --webserver nginx --certbot yes --email admin@example.com \
-  --proxy-http --storage internal_hashed
+  --firewall yes --proxy-http --storage internal_hashed
 ```
 
 `proctor init --setup` does the same after creating the config/repository.
@@ -196,7 +198,7 @@ sudo proctor backup --encrypt
 | Command | Purpose |
 |---|---|
 | `proctor init` | Create the JSON config and 0700 backup repository. `--setup` runs guided installation. |
-| `proctor setup` | Install/configure Prosody, nginx or Apache, certbot, TLS, domains and an admin account. |
+| `proctor setup` | Install/configure Prosody, nginx or Apache, certbot, TLS, domains, firewall ports and an admin account. |
 | `proctor discover` | Show detected OS, init system, Prosody paths, storage, users. |
 | `proctor doctor` | Preflight/health checks (paths, DB clients, cert expiry, freshness). |
 | `proctor backup` | Create a backup. `--live`, `--verify`, `--include-logs`, `--only`, `--exclude`, `--exclude-path`, `--include-path`, `--encrypt`, `--compression gz\|xz\|zstd\|none`. |
@@ -204,7 +206,7 @@ sudo proctor backup --encrypt
 | `proctor info ID` | Show the manifest. |
 | `proctor verify ID` | Verify archive SHA-256, embedded/sidecar manifest and every member. |
 | `proctor users ID` | List XMPP accounts in a backup (SQLite and filesystem stores). |
-| `proctor restore ID` | Restore onto this host. `--dry-run`, `--only`, `--exclude`, `--keep-config`, `--map OLD=NEW`, `--no-safety-backup`, `--install-missing`, `--webserver`, `--certbot`, `--email`. |
+| `proctor restore ID` | Restore onto this host. `--dry-run`, `--only`, `--exclude`, `--keep-config`, `--map OLD=NEW`, `--no-safety-backup`, `--install-missing`, `--webserver`, `--certbot`, `--email`, `--firewall`. |
 | `proctor migrate ID` | Restore/migrate to a new host with path rewriting, migration checks and optional package/web/certbot provisioning. |
 | `proctor export ID -o FILE` | Create a single portable bundle (archive + manifest + checksum). |
 | `proctor import FILE` | Import a bundle or raw archive into a repository. |

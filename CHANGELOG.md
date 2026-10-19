@@ -1,5 +1,19 @@
 # Changelog
 
+## Unreleased
+
+- Refresh package indexes before native package installation on apt, dnf/yum,
+  zypper, apk and xbps.
+- Certbot access repairs for `/etc/letsencrypt` itself, POSIX ACL support, a
+  renewal deploy hook that keeps Prosody's certificate access working, and
+  permission repair before Prosody starts after a restore.
+- Direct BOSH/HTTPS configuration (`https_ssl`) when no reverse proxy is used.
+- Opt-in UFW/firewalld port opening during setup and provisioning.
+- `--firewall` setup/restore/migrate option; `--only certs` now includes the
+  Let's Encrypt tree.
+- Certbot renewal conversion removes old nginx/Apache installer directives.
+- 61-case unittest suite.
+
 ## 1.0.0 — 2026-10-18
 
 Initial release.

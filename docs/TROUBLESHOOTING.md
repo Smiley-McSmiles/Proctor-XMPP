@@ -31,14 +31,17 @@ or changes. Non-interactive runs do not install packages unless
 
 ## Package installation failed
 
-Proctor does not run package-index refreshes. Update the package manager first:
+Proctor refreshes package indexes for apt, dnf/yum, zypper, apk and xbps at the
+first package install. If the refresh failed (offline mirror, stale metadata,
+proxy authentication), update manually:
 
 ```sh
 sudo apt update          # Debian/Ubuntu
 sudo dnf makecache       # Fedora/RHEL
+sudo zypper refresh      # openSUSE
 sudo apk update          # Alpine
 sudo xbps-install -S     # Void
-sudo pkg update          # FreeBSD
+sudo pkg update          # FreeBSD (manual; may switch package branch)
 ```
 
 Then re-run `proctor setup` or `proctor migrate ... --install-missing`. On very
@@ -86,6 +89,29 @@ The generated Prosody config requires TLS only when certificates exist. Run
 `setup` with certbot, or place certificates in `/etc/prosody/certs` and reference
 them in `ssl` blocks. Without TLS, clients cannot use STARTTLS and
 `c2s_require_encryption` is set to false by the generated config.
+
+## Prosody cannot read Let's Encrypt certificates
+
+Certbot normally makes `/etc/letsencrypt` mode 0700. The Prosody service user
+therefore needs permission on the parent directory as well as the `live/` and
+`archive/` trees. Check the effective path and ACLs:
+
+```sh
+sudo namei -l /etc/letsencrypt/live/example.com/privkey.pem
+sudo getfacl -p /etc/letsencrypt /etc/letsencrypt/live /etc/letsencrypt/archive
+```
+
+Proctor applies this when it provisions or restores certificates. To repair it
+manually (this is the approach used by many Prosody + Certbot guides):
+
+```sh
+sudo apt install acl
+sudo setfacl -m u:prosody:x /etc/letsencrypt
+sudo setfacl -R -m u:prosody:rX /etc/letsencrypt/live /etc/letsencrypt/archive
+```
+
+Re-run `proctor setup` or the restore if you change permissions, and verify with
+`sudo -u prosody test -r /etc/letsencrypt/live/example.com/privkey.pem`.
 
 ## "could not find prosody.cfg.lua"
 

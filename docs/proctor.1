@@ -57,6 +57,7 @@ Create the JSON configuration and a mode-0700 repository. Options:
 .BR \-\-webserver " " \fIauto|none|nginx|apache\fR,
 .BR \-\-certbot " " \fIauto|yes|no\fR,
 .BR \-\-email " " \fIADDRESS\fR,
+.BR \-\-firewall " " \fIauto|yes|no\fR,
 .BR \-\-prosody\-config " " \fIFILE\fR.
 .TP
 .B discover
@@ -77,6 +78,7 @@ replaced. Options:
 .BR \-\-webserver " " \fIauto|none|nginx|apache\fR,
 .BR \-\-certbot " " \fIauto|yes|no\fR,
 .BR \-\-email " " \fIADDRESS\fR,
+.BR \-\-firewall " " \fIauto|yes|no\fR,
 .BR \-\-storage " " \fIinternal_hashed|sqlite\fR,
 .BR \-\-proxy\-http ,
 .BR \-\-no\-proxy\-http ,
@@ -147,6 +149,7 @@ safety backup of the target is created and Prosody is stopped. Options:
 .BR \-\-webserver " " \fIauto|none|nginx|apache\fR,
 .BR \-\-certbot " " \fIauto|yes|no\fR,
 .BR \-\-email " " \fIADDRESS\fR,
+.BR \-\-firewall " " \fIauto|yes|no\fR,
 .BR \-\-admin " " \fIJID\fR,
 .BR \-\-proxy\-http ,
 .BR \-\-no\-proxy\-http .
@@ -213,7 +216,10 @@ is given. Interactive
 .B setup
 asks for the XMPP domains, admin JID, web server, proxy paths, Let's Encrypt
 email and storage backend, then writes a generated Prosody configuration and an
-XMPP reverse-proxy vhost. Certbot uses the HTTP-01 webroot flow.
+XMPP reverse-proxy vhost. Certbot uses the HTTP-01 webroot flow. If UFW or
+firewalld is active, the interactive run offers to open the XMPP and HTTP/HTTPS
+ports; non-interactive runs require
+.BR \-\-firewall " " \fIyes\fR.
 .PP
 Without
 .BR \-\-install\-missing ,

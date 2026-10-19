@@ -18,7 +18,8 @@ from .database import describe_database, restore_database
 from .errors import ConfigError, DetectionError, IntegrityError, PermissionDenied, ProctorError
 from .prosody import detect_prosody
 from .provision import (
-    Prompter, ProvisionOptions, finalize_restore, prepare_restore,
+    CERTBOT_ROOT, Prompter, ProvisionOptions, finalize_restore,
+    grant_certificate_access, prepare_restore,
 )
 from .service import ServiceController, validate_prosody_config
 from .util import (
@@ -48,6 +49,7 @@ class RestoreOptions(object):
         self.install_missing = kwargs.get("install_missing", None)
         self.webserver = kwargs.get("webserver", "auto")
         self.certbot = kwargs.get("certbot", "auto")
+        self.firewall = kwargs.get("firewall", "auto")
         self.email = kwargs.get("email")
         self.domains = list(kwargs.get("domains", []) or [])
         self.admin = kwargs.get("admin")
@@ -285,6 +287,7 @@ def restore_backup(config, repository, reference, options, reporter):
             install_missing=options.install_missing,
             webserver=options.webserver,
             certbot=options.certbot,
+            firewall=options.firewall,
             email=options.email,
             domains=options.domains,
             admin=options.admin,
@@ -513,6 +516,25 @@ def _restore_locked(config, repository, entry, manifest, target, installed, mapp
         elif db_meta:
             reporter.info("Database restore skipped")
 
+        # Restored Certbot files keep their source modes. In particular,
+        # /etc/letsencrypt is usually 0700 root:root while Prosody relies on
+        # an ACL that is not portable through a tar archive. Repair access
+        # before validating/starting Prosody, otherwise STARTTLS fails and the
+        # service may not come up.
+        if os.path.isdir(CERTBOT_ROOT):
+            grant_certificate_access(target, reporter)
+
+        # Provision the web server and any missing certificate before starting
+        # Prosody. The restored config may reference a certificate that was
+        # excluded from the archive and is only issued during finalisation.
+        if prepared and not prepared.get("skipped"):
+            web_result = finalize_restore(config, manifest, target, prepared, options,
+                                          reporter, Prompter(
+                                              assume_yes=bool(options.assume_yes
+                                                              and options.install_missing)
+                                          ))
+            report["webserver"] = web_result
+
         should_start = options.start
         if should_start is None:
             should_start = bool(was_running) or bool(
@@ -553,13 +575,6 @@ def _restore_locked(config, repository, entry, manifest, target, installed, mapp
                 % target.service_name
             )
 
-        if prepared and not prepared.get("skipped"):
-            web_result = finalize_restore(config, manifest, target, prepared, options,
-                                          reporter, Prompter(
-                                              assume_yes=bool(options.assume_yes
-                                                              and options.install_missing)
-                                          ))
-            report["webserver"] = web_result
         _post_restore_system_actions(host, target, reporter, report)
         report["checklist"] = _migration_checklist(manifest, target, installed, db_meta)
         report["completed_at"] = isoformat()
@@ -608,8 +623,10 @@ def _selected(item, options, source_cert_dirs, source_le_roots):
     if component in options.exclude:
         return False
     if options.only and component not in options.only:
-        if not (component == "config" and "certs" in options.only
-                and _is_cert_path(path, source_cert_dirs, source_le_roots)):
+        if component == "letsencrypt" and "certs" in options.only:
+            pass
+        elif not (component == "config" and "certs" in options.only
+                  and _is_cert_path(path, source_cert_dirs, source_le_roots)):
             return False
     if options.keep_current_config and component == "config" and not _is_cert_path(
             path, source_cert_dirs, source_le_roots):
