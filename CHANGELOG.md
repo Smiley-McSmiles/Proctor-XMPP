@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 1.0.1 — 2026-10-18
 
 - Refresh package indexes before native package installation on apt, dnf/yum,
   zypper, apk and xbps.
