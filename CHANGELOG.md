@@ -36,6 +36,6 @@ Initial release.
   permission repair before Prosody starts after a restore.
 - Direct BOSH/HTTPS configuration (`https_ssl`) when no reverse proxy is used.
 - Opt-in UFW/firewalld port opening during setup and provisioning.
-- Stdlib-only Python 3.8+ implementation, 60-case unittest suite and CI matrix.
+- Stdlib-only Python 3.8+ implementation, 61-case unittest suite and CI matrix.
 - Multi-platform `package.sh`: portable tarball, Debian/RPM/Arch/Void packages,
   Alpine/OpenBSD recipes and `dist/SHA256SUMS`.
