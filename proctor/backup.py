@@ -267,6 +267,7 @@ def _create_backup_locked(config, repository, options, reporter, install, contro
                 "service": environment["service"],
                 "webserver": web_meta,
                 "letsencrypt": le_meta,
+                "turn": _turn_meta(install),
             },
             "targets": _targets_dict(roots),
             "components": writer.components,
@@ -495,6 +496,42 @@ def build_roots(install, options):
     return accepted, skip_prefixes
 
 
+def _turn_meta(install):
+    """Record the coturn/mod_turn_external shape for restore/migrate."""
+    try:
+        from .turn import detect_coturn
+        turn = detect_coturn()
+    except ProctorError:
+        return {"enabled": False}
+    enabled = bool(
+        "turn_external" in (getattr(install, "modules_enabled", []) or [])
+        or turn.exists
+    )
+    result = {"enabled": enabled}
+    if not enabled:
+        return result
+    values = (install.parsed or {}).get("values", {})
+    result.update({
+        "host": values.get("turn_external_host"),
+        "secret": values.get("turn_external_secret"),
+        "port": values.get("turn_external_port"),
+        "coturn": {
+            "path": turn.path,
+            "installed": bool(which("turnserver")),
+            "realm": turn.realm,
+            "port": turn.port,
+            "tls_port": turn.tls_port,
+            "min_port": turn.min_port,
+            "max_port": turn.max_port,
+            "external_ip": turn.external_ip,
+            "use_auth_secret": turn.use_auth_secret,
+            "no_tls": turn.no_tls,
+        },
+        "config": turn.raw if turn.exists else None,
+    })
+    return result
+
+
 def _default_letsencrypt_roots():
     return [
         "/etc/letsencrypt/live",
@@ -518,6 +555,8 @@ def _system_paths(install):
         "/etc/rc.conf.d/%s" % service,
         "/etc/cron.d/%s" % service,
         "/etc/logrotate.d/%s" % service,
+        "/etc/coturn/turnserver.conf",
+        "/etc/firewalld/services/coturn.xml",
     ]
     if install.config_dir.startswith("/usr/local"):
         paths.append("/usr/local/etc/rc.conf.d/%s" % service)

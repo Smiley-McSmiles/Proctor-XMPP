@@ -32,6 +32,8 @@ It then asks before changing the host:
 8. **Firewall** — if UFW or firewalld is active, offer to open the XMPP and
    HTTP/HTTPS ports. This is skipped for non-interactive runs unless
    `--firewall yes` is passed.
+9. **coturn / TURN** — whether to install coturn for audio/video calls, and the
+   `turn.<domain>` hostname. See [TURN.md](TURN.md).
 
 After confirmation it installs native packages, writes:
 
@@ -114,6 +116,9 @@ DNS/ports and re-run `proctor setup`, or obtain certificates separately.
 | FreeBSD/DragonFly | `prosody` | `nginx` | `apache24` | `certbot` |
 | NetBSD | `prosody` | `nginx` | `apache24` | `certbot` |
 | OpenBSD | `prosody` | `nginx` | Apache if installed | `certbot` |
+
+coturn is installed as `coturn` (`net-im/coturn` on Gentoo) when TURN is
+enabled.
 
 Exact package names can differ on older releases. Proctor refreshes package
 indexes automatically where the package manager supports it (`apt-get update`,

@@ -1,5 +1,17 @@
 # Changelog
 
+## Unreleased
+
+- coturn/`mod_turn_external` support: `proctor setup --turn`, `proctor turn
+  --setup`, TURN vhost on nginx/Apache with ACME webroot, certificate ACLs for
+  the coturn user, firewalld service (including the UDP relay range), UFW rules
+  and SELinux port labels.
+- `proctor turn` / `doctor` checks: realm, REST API secret, conflicting auth,
+  relay range, certificates, live STUN/TURN realm+nonce probe, realm mismatch,
+  firewall and SELinux state.
+- Backups record TURN settings; restore/migrate recreate coturn.
+- 78-case unittest suite.
+
 ## 1.0.1 — 2026-10-18
 
 - Refresh package indexes before native package installation on apt, dnf/yum,
