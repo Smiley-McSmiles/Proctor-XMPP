@@ -1688,7 +1688,7 @@ def setup_server(config, options, reporter):
                                  backend="webroot" if web is not None else "standalone")
     if tls:
         grant_certificate_access(layout, reporter)
-    if certbot_wanted:
+    if certbot_wanted or tls:
         install_renewal_hook(layout, web)
         if web is not None:
             configure_renewal_webroot()
