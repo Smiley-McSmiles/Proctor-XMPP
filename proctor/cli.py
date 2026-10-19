@@ -75,6 +75,8 @@ def build_parser():
                       default="auto")
     init.add_argument("--certbot", choices=("auto", "yes", "no"), default="auto")
     init.add_argument("--email", metavar="ADDRESS")
+    init.add_argument("--firewall", choices=("auto", "yes", "no"), default="auto",
+                      help="open XMPP/HTTP ports during --setup when a firewall is active")
 
     discover = command("discover", "show detected OS, init system and Prosody layout")
     discover.add_argument("--prosody-config", metavar="FILE")
@@ -92,6 +94,8 @@ def build_parser():
                        default="auto")
     setup.add_argument("--certbot", choices=("auto", "yes", "no"), default="auto")
     setup.add_argument("--email", metavar="ADDRESS", help="Let's Encrypt email")
+    setup.add_argument("--firewall", choices=("auto", "yes", "no"), default="auto",
+                       help="open XMPP/HTTP ports when UFW or firewalld is active")
     setup.add_argument("--storage", choices=("internal_hashed", "sqlite", "sql"),
                        default=None,
                        help="storage backend (asks interactively if omitted)")
@@ -251,6 +255,8 @@ def _restore_arguments(parser):
                         default="auto", help="web server for HTTP/BOSH/WebSocket")
     parser.add_argument("--certbot", choices=("auto", "yes", "no"), default="auto")
     parser.add_argument("--email", metavar="ADDRESS", help="Let's Encrypt email")
+    parser.add_argument("--firewall", choices=("auto", "yes", "no"), default="auto",
+                        help="open XMPP/HTTP ports when UFW or firewalld is active")
     parser.add_argument("--domain", action="append", default=[], metavar="DOMAIN",
                         help="override web/TLS domains during provisioning (repeatable)")
     parser.add_argument("--admin", metavar="JID",
@@ -416,6 +422,7 @@ def _cmd_init(args, reporter):
             webserver=args.webserver,
             certbot=args.certbot,
             email=args.email,
+            firewall=args.firewall,
             domains=args.domain,
             assume_yes=args.yes,
         )
@@ -482,6 +489,7 @@ def _cmd_setup(args, config, reporter):
         dry_run=args.dry_run,
         assume_yes=args.yes,
         force=args.force,
+        firewall=args.firewall,
     )
     result = setup_server(config, options, reporter)
     reporter.emit(result, human=_fmt_setup)
@@ -495,6 +503,10 @@ def _cmd_backup(args, config, repository, reporter):
         args.skip_database = True
     if "certs" in exclude:
         exclude.add("letsencrypt")
+    if "certs" in only:
+        # Certbot's live/archive tree is the certificate store on the hosts
+        # Proctor supports; `--only certs` should include it.
+        only.add("letsencrypt")
     if only and "database" not in only and "data" not in only:
         args.skip_database = True
     include_logs = args.include_logs
@@ -624,6 +636,7 @@ def _cmd_restore(args, config, repository, reporter, mode):
         install_missing=args.install_missing,
         webserver=args.webserver,
         certbot=args.certbot,
+        firewall=args.firewall,
         email=args.email,
         domains=args.domain,
         admin=args.admin,
@@ -945,6 +958,8 @@ def _fmt_restore(value):
             lines.append("TLS warning:    %s" % web["certificate_error"])
         elif web.get("certificate_requested") and not web.get("tls"):
             lines.append("TLS warning:    certbot did not produce a certificate")
+    if web.get("firewall"):
+        lines.append("Firewall:       %s" % _firewall_text(web["firewall"]))
     if value.get("rewritten_configs"):
         lines.append("Rewritten configs:")
         lines.extend("  - %s" % item for item in value["rewritten_configs"])
@@ -974,6 +989,21 @@ def _fmt_doctor(value):
         rows.append([check["status"].upper(), check["name"], check["detail"]])
     summary = "%d failure(s), %d warning(s)" % (value["failures"], value["warnings"])
     return "%s\n\n%s" % (table(["STATUS", "CHECK", "DETAIL"], rows), summary)
+
+
+def _firewall_text(value):
+    status = value.get("status")
+    ports = ", ".join(str(port) for port in value.get("ports") or [])
+    backend = value.get("backend") or "firewall"
+    if status == "opened":
+        return "opened %s via %s" % (ports, backend)
+    if status == "inactive":
+        return "no active UFW/firewalld"
+    if status == "skipped":
+        return "skipped%s" % (" (%s)" % value["hint"] if value.get("hint") else "")
+    if status == "failed":
+        return "failed via %s for %s" % (backend, ports)
+    return status or "unknown"
 
 
 def _fmt_setup(value):
@@ -1012,6 +1042,8 @@ def _fmt_setup(value):
         "certbot:     %s" % ("yes" if value.get("certbot") else "no"),
         "Proxy HTTP:  %s" % ("yes" if value.get("proxy") else "no"),
     ]
+    if value.get("firewall"):
+        lines.append("Firewall:    %s" % _firewall_text(value["firewall"]))
     if value.get("certbot_failed"):
         lines.append("WARNING: certbot did not produce a certificate; check DNS/port 80")
     return "\n".join(lines)

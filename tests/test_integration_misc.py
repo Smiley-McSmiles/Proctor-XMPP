@@ -3,7 +3,9 @@ from __future__ import print_function
 import json
 import os
 import shutil
+import stat
 import subprocess
+import sys
 import tempfile
 import unittest
 from types import SimpleNamespace
@@ -42,10 +44,12 @@ class ServiceControllerTests(unittest.TestCase):
 
     def test_custom_commands(self):
         controller = ServiceController(self._host("unknown"), "xmpp", config={
-            "commands": {"start": ["/bin/true", "{name}"], "stop": "stop-xmpp {name}"}
+            "commands": {"start": [sys.executable, "-c", "pass", "{name}"],
+                         "stop": "stop-xmpp {name}"}
         })
         self.assertTrue(controller.available)
-        self.assertEqual(controller.command("start"), ["/bin/true", "xmpp"])
+        self.assertEqual(controller.command("start"),
+                         [sys.executable, "-c", "pass", "xmpp"])
         self.assertEqual(controller.command("stop"), ["stop-xmpp", "xmpp"])
         self.assertTrue(controller.start())
 
@@ -111,6 +115,24 @@ class ProvisioningTests(unittest.TestCase):
         self.assertIn("c2s_require_encryption = false", text)
         self.assertIn("admin@example.com", text)
 
+    def test_prosody_bosh_tls_config_matches_proxy_mode(self):
+        from proctor.provision import prosody_config_text
+        layout = self._layout()
+        proxied = prosody_config_text(
+            layout, ["example.com"], "admin@example.com", True, "example.com",
+            proxy=True,
+        )
+        self.assertIn("https_ports = { }", proxied)
+        self.assertNotIn("https_ssl = {", proxied)
+
+        direct = prosody_config_text(
+            layout, ["example.com"], "admin@example.com", True, "example.com",
+            proxy=False,
+        )
+        self.assertIn("https_ports = { 5281 }", direct)
+        self.assertIn("https_ssl = {", direct)
+        self.assertIn("/etc/letsencrypt/live/example.com/privkey.pem", direct)
+
     def test_nginx_and_apache_config_text(self):
         from proctor.provision import apache_config_text, nginx_config_text
         nginx = nginx_config_text(["example.com"], True, "example.com", True,
@@ -145,6 +167,104 @@ class ProvisioningTests(unittest.TestCase):
             host = SimpleNamespace(package_manager=manager, pretty_name=manager)
             installer = PackageInstaller(host, Reporter(), dry_run=True)
             self.assertEqual(installer.command(["prosody"])[0], expected)
+
+    def test_package_refresh_and_acl_dependency(self):
+        from proctor.provision import PackageInstaller, certbot_packages
+        class Reporter(object):
+            def info(self, message):
+                pass
+            def step(self, message):
+                pass
+            def warn(self, message):
+                pass
+        expected = {
+            "apt": "apt-get", "dnf": "dnf", "yum": "yum",
+            "zypper": "zypper", "apk": "apk", "xbps": "xbps-install",
+        }
+        for manager, first in expected.items():
+            host = SimpleNamespace(package_manager=manager, pretty_name=manager)
+            installer = PackageInstaller(host, Reporter(), dry_run=True)
+            self.assertEqual(installer.refresh_command()[0], first)
+        host = SimpleNamespace(package_manager="apt", system_id="linux",
+                               hostname="test", pretty_name="Ubuntu",
+                               family=lambda: "debian")
+        self.assertIn("acl", certbot_packages(host))
+
+    def test_firewall_ports_and_noninteractive_skip(self):
+        from unittest.mock import patch
+        from proctor.provision import ensure_firewall, firewall_ports
+        self.assertEqual(firewall_ports(True, True), [80, 443, 5222, 5269])
+        self.assertEqual(firewall_ports(True, False), [80, 5222, 5269])
+        self.assertEqual(firewall_ports(False, True), [5222, 5269, 5280, 5281])
+        host = SimpleNamespace()
+        options = SimpleNamespace(firewall="auto")
+        prompter = SimpleNamespace(interactive=False, assume_yes=True)
+        class Reporter(object):
+            def step(self, message):
+                pass
+            def warn(self, message):
+                pass
+        active = SimpleNamespace(returncode=0, stdout=b"Status: active\n", stderr=b"")
+        with patch("proctor.provision.which", lambda name: "/usr/sbin/ufw"
+                   if name == "ufw" else None), \
+                patch("proctor.provision.run", lambda *args, **kwargs: active):
+            result = ensure_firewall(host, [5222, 5269], options,
+                                     Reporter(), prompter)
+        self.assertEqual(result["status"], "skipped")
+        self.assertIn("--firewall yes", result["hint"])
+
+    def test_certificate_access_repairs_certbot_parent_and_key(self):
+        import grp
+        import pwd
+        from unittest.mock import patch
+        from proctor.provision import grant_certificate_access
+        root = tempfile.mkdtemp()
+        live = os.path.join(root, "live", "example.com")
+        archive = os.path.join(root, "archive", "example.com")
+        os.makedirs(live)
+        os.makedirs(archive)
+        key = os.path.join(archive, "privkey1.pem")
+        fullchain = os.path.join(archive, "fullchain1.pem")
+        with open(key, "w") as handle:
+            handle.write("key\n")
+        with open(fullchain, "w") as handle:
+            handle.write("cert\n")
+        os.chmod(root, 0o700)
+        os.chmod(key, 0o600)
+        os.chmod(fullchain, 0o600)
+        os.symlink(os.path.join("..", "..", "archive", "example.com", "privkey1.pem"),
+                   os.path.join(live, "privkey.pem"))
+        layout = SimpleNamespace(
+            user=pwd.getpwuid(os.getuid()).pw_name,
+            group=grp.getgrgid(os.getgid()).gr_name,
+        )
+        with patch("proctor.provision.CERTBOT_ROOT", root), \
+                patch("proctor.provision.CERTBOT_LIVE", os.path.dirname(live)), \
+                patch("proctor.provision.CERTBOT_ARCHIVE", os.path.dirname(archive)), \
+                patch("proctor.provision.which", lambda name: None):
+            self.assertTrue(grant_certificate_access(layout))
+        self.assertEqual(stat.S_IMODE(os.stat(root).st_mode), 0o711)
+        self.assertEqual(stat.S_IMODE(os.stat(key).st_mode), 0o640)
+        self.assertEqual(stat.S_IMODE(os.stat(fullchain).st_mode), 0o644)
+        self.assertEqual(os.stat(key).st_gid, os.getgid())
+
+    def test_renewal_hook_repairs_parent_and_uses_acl(self):
+        from unittest.mock import patch
+        from proctor.provision import install_renewal_hook
+        captured = {}
+        layout = SimpleNamespace(user="prosody", group="prosody",
+                                 service_name="prosody")
+        with patch("proctor.provision.ensure_dir"), \
+                patch("proctor.provision.atomic_write",
+                      lambda path, data, mode=None: captured.update(
+                          path=path, data=data)):
+            install_renewal_hook(layout)
+        text = captured["data"].decode()
+        self.assertIn("setfacl", text)
+        self.assertIn("u:prosody:x /etc/letsencrypt", text)
+        self.assertIn("/etc/letsencrypt/live", text)
+        self.assertIn("/etc/letsencrypt/archive", text)
+        self.assertIn("chmod 711 /etc/letsencrypt", text)
 
     def test_finalize_restore_generates_nginx_config(self):
         from unittest.mock import patch
@@ -252,6 +372,17 @@ class ProvisioningTests(unittest.TestCase):
 
 
 class PathMapperTests(unittest.TestCase):
+    def test_only_certs_includes_letsencrypt(self):
+        from proctor.restore import RestoreOptions, _selected
+        options = RestoreOptions(only={"certs"})
+        letsencrypt = {"component": "letsencrypt",
+                       "path": "/etc/letsencrypt/live/example.com/fullchain.pem"}
+        local = {"component": "certs", "path": "/etc/prosody/certs/example.pem"}
+        config = {"component": "config", "path": "/etc/prosody/prosody.cfg.lua"}
+        self.assertTrue(_selected(letsencrypt, options, [], []))
+        self.assertTrue(_selected(local, options, [], []))
+        self.assertFalse(_selected(config, options, [], []))
+
     def test_rewrite_does_not_cascade(self):
         from proctor.restore import PathMapper
         mapper = PathMapper([("/var/lib/prosody", "/var/lib/prosody-new"),

@@ -297,7 +297,9 @@ _xmpp-server._tcp.example.com. 300 IN SRV 0 5 5269 xmpp.example.com.
 ```
 
 - Lower TTLs before the window.
-- Open 5222, 5269 and 5280/5281 as needed.
+- Open 5222, 5269 and 5280/5281 as needed. Proctor can open these in an active
+  UFW/firewalld setup with `--firewall yes`; otherwise use `ufw`/`firewall-cmd`
+  manually.
 - If using a proxy, update backend addresses.
 - Keep the old server running read-only or stopped until clients reconnect.
 - Watch logs for s2s errors after cutover.

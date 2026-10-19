@@ -29,6 +29,9 @@ It then asks before changing the host:
    flow, plus the account email.
 6. **Storage** — internal hashed storage (recommended) or SQLite.
 7. **Admin password** — hidden input; leave blank to create the account later.
+8. **Firewall** — if UFW or firewalld is active, offer to open the XMPP and
+   HTTP/HTTPS ports. This is skipped for non-interactive runs unless
+   `--firewall yes` is passed.
 
 After confirmation it installs native packages, writes:
 
@@ -38,9 +41,12 @@ After confirmation it installs native packages, writes:
 - an nginx/Apache vhost named `proctor-xmpp.conf`, with reverse proxy locations
   and ACME challenge handling;
 - Let's Encrypt certificates under `/etc/letsencrypt/live/<cert-name>/`;
-- a Prosody-readable group permission on certbot private keys.
+- read/traverse access to Certbot's tree for the Prosody user, using POSIX ACLs
+  where available (including `/etc/letsencrypt` itself, not only `live/` and
+  `archive/`).
 
-It enables and starts the services and registers the admin account.
+It refreshes package indexes before package installation, enables and starts the
+services, registers the admin account, and offers to open firewall ports.
 
 Existing Prosody configuration is copied to
 `prosody.cfg.lua.pre-proctor-<timestamp>` even with `--force`.
@@ -63,6 +69,8 @@ Notes:
 - `--certbot auto` is deliberately treated as **no** under `--yes` unless you
   pass `--certbot yes --email ...`; package setup should not contact Let's
   Encrypt without an explicit request.
+- `--firewall auto` skips firewall changes under `--yes`; pass
+  `--firewall yes` to open UFW/firewalld ports unattended.
 - `--webserver none` leaves Prosody as an XMPP-only server (HTTP endpoints bind
   publicly by default).
 - `--no-start` installs and writes config but does not start Prosody.
@@ -79,6 +87,16 @@ For certbot HTTP-01:
 - if a proxy/CDN is in front, configure it to pass
   `/.well-known/acme-challenge/` through to the host.
 
+Proctor can update an existing UFW or firewalld configuration when you confirm
+the prompt, or with `--firewall yes`. Without that, open the ports yourself, for
+example on Ubuntu:
+
+```sh
+sudo ufw allow 80,443,5222,5269/tcp
+# only for direct BOSH/HTTPS without a reverse proxy:
+sudo ufw allow 5280,5281/tcp
+```
+
 Certbot failure is reported but does not roll back the Prosody installation. Fix
 DNS/ports and re-run `proctor setup`, or obtain certificates separately.
 
@@ -86,7 +104,7 @@ DNS/ports and re-run `proctor setup`, or obtain certificates separately.
 
 | Family | Prosody | nginx | Apache | certbot |
 |---|---|---|---|---|
-| Debian/Ubuntu | `prosody` | `nginx` | `apache2` | `certbot` |
+| Debian/Ubuntu | `prosody` | `nginx` | `apache2` | `certbot`, `acl` |
 | Fedora/RHEL family | `prosody` | `nginx` | `httpd`, `mod_ssl` | `certbot` |
 | openSUSE | `prosody` | `nginx` | `httpd`, `mod_ssl` | `certbot` |
 | Arch | `prosody` | `nginx` | `apache` | `certbot` |
@@ -97,9 +115,11 @@ DNS/ports and re-run `proctor setup`, or obtain certificates separately.
 | NetBSD | `prosody` | `nginx` | `apache24` | `certbot` |
 | OpenBSD | `prosody` | `nginx` | Apache if installed | `certbot` |
 
-Exact package names can differ on older releases. If a package is not found,
-install it manually and re-run; Proctor does not run `apt update`,
-`pkg update`, or similar metadata refreshes.
+Exact package names can differ on older releases. Proctor refreshes package
+indexes automatically where the package manager supports it (`apt-get update`,
+`dnf makecache`, `apk update`, `zypper refresh`, `xbps-install -S`). A failed
+refresh is reported and the install continues with cached indexes. FreeBSD
+`pkg update` remains a manual choice because it can pull a new package branch.
 
 ## Generated file locations
 
@@ -111,12 +131,20 @@ install it manually and re-run; Proctor does not run `apt update`,
 - Apache (Debian): `/etc/apache2/sites-available/proctor-xmpp.conf` with
   `a2ensite`; other families: `<httpd root>/conf.d/proctor-xmpp.conf`.
 - certbot: `/etc/letsencrypt/live/<cert-name>/{fullchain.pem,privkey.pem}`.
-- Certbot private keys are made group-readable by the Prosody group; the
-  `/etc/letsencrypt/archive` directories are made traversable.
+- Certbot leaves `/etc/letsencrypt` at mode 0700. Proctor grants the Prosody
+  user read/traverse access to `/etc/letsencrypt`, `live/` and `archive/` with
+  `setfacl` when available. If ACLs are unavailable, it falls back to a
+  group-readable private key (`0640`) and directory traversal permissions.
+  Restoring a backup re-applies this because POSIX ACLs are not portable through
+  the tar archive.
 - A certbot deploy hook (`/etc/letsencrypt/renewal-hooks/deploy/proctor-permissions`)
-  re-applies key permissions and reloads/restarts Prosody and the web server
-  after renewal. Restored renewal configs are switched to the webroot flow when
-  the old host used the nginx/Apache certbot plugin.
+  re-applies access after renewal and reloads/restarts Prosody and the web
+  server. Restored renewal configs are switched to the webroot flow when the old
+  host used the nginx/Apache certbot plugin.
+- When no reverse proxy is used, the generated Prosody config adds an
+  `https_ssl` block for direct HTTPS/BOSH on port 5281, matching the manual
+  Prosody/certbot setup guides. When nginx/Apache terminates TLS, Prosody binds
+  HTTP on localhost only and does not open 5281.
 
 Generated files are marked `Managed by proctor`; other site configs are not
 modified.
@@ -140,7 +168,9 @@ It then:
 2. generates the nginx/Apache vhost for the backed-up domains and proxy paths,
 3. reuses restored Let's Encrypt certificates when present,
 4. otherwise offers to issue them with certbot,
-5. reloads the web server and starts Prosody.
+5. repairs Prosody's access to Certbot's private keys,
+6. reloads the web server, offers to open active firewall ports, and starts
+   Prosody.
 
 Without `--install-missing`, in a non-interactive run, Proctor restores files but
 does not install packages. It prints what is missing.

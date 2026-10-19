@@ -23,8 +23,10 @@ from .util import (
     atomic_write, ensure_dir, gid_for, human_bytes, is_root, run, uid_for, which,
 )
 
-CERTBOT_LIVE = "/etc/letsencrypt/live"
-CERTBOT_RENEWAL = "/etc/letsencrypt/renewal"
+CERTBOT_ROOT = "/etc/letsencrypt"
+CERTBOT_LIVE = os.path.join(CERTBOT_ROOT, "live")
+CERTBOT_ARCHIVE = os.path.join(CERTBOT_ROOT, "archive")
+CERTBOT_RENEWAL = os.path.join(CERTBOT_ROOT, "renewal")
 WEBROOT = "/var/www/html"
 PROXY_PATHS = ("/http-bind", "/xmpp-websocket", "/upload", "/.well-known/host-meta")
 
@@ -107,10 +109,50 @@ class Prompter(object):
 
 
 class PackageInstaller(object):
+    _refreshed = set()
+
     def __init__(self, host, reporter, dry_run=False):
         self.host = host
         self.reporter = reporter
         self.dry_run = dry_run
+
+    def refresh_command(self):
+        """Return the package-index refresh command, or None if not needed."""
+        manager = self.host.package_manager
+        commands = {
+            "apt": ["apt-get", "update"],
+            "dnf": ["dnf", "makecache"],
+            "yum": ["yum", "makecache"],
+            "zypper": ["zypper", "--non-interactive", "refresh"],
+            "apk": ["apk", "update"],
+            "xbps": ["xbps-install", "-S"],
+        }
+        return commands.get(manager)
+
+    def _refresh(self, env):
+        command = self.refresh_command()
+        if not command:
+            return
+        manager = self.host.package_manager
+        if manager in self._refreshed:
+            return
+        # Mark it before running: a broken mirror should not make Proctor try
+        # the same slow refresh for Prosody, the web server and certbot.
+        self._refreshed.add(manager)
+        self.reporter.step("Refreshing package metadata: %s" % " ".join(command))
+        try:
+            proc = run(command, check=False, env=env, timeout=None)
+        except Exception as exc:
+            self.reporter.warn("package metadata refresh failed: %s" % exc)
+            return
+        if proc.returncode != 0:
+            output = ((proc.stdout or b"") + (proc.stderr or b"")).decode(
+                "utf-8", "replace"
+            ).strip()
+            self.reporter.warn(
+                "package metadata refresh failed (continuing with cached indexes): %s"
+                % (output.splitlines()[-1] if output else "exit %d" % proc.returncode)
+            )
 
     def command(self, packages):
         packages = list(dict.fromkeys(packages))
@@ -162,6 +204,7 @@ class PackageInstaller(object):
         env = dict(os.environ)
         if self.host.package_manager == "apt":
             env["DEBIAN_FRONTEND"] = "noninteractive"
+        self._refresh(env)
         try:
             run(command, env=env, timeout=None)
         except ExternalCommandError as exc:
@@ -434,7 +477,12 @@ def certbot_packages(host):
     if host.hostname and host.system_id in ("freebsd", "netbsd"):
         # Ports package names are Python-versioned on some releases.
         return ["certbot"]
-    return ["certbot"]
+    packages = ["certbot"]
+    # POSIX ACLs let us grant Prosody access without making Certbot's tree
+    # world-readable. Debian/Ubuntu package setfacl in 'acl'.
+    if host.family() == "debian":
+        packages.append("acl")
+    return packages
 
 
 def prosody_packages(host):
@@ -463,6 +511,7 @@ class ProvisionOptions(object):
         self.force = kwargs.get("force", False)
         self.http_port = kwargs.get("http_port", 5280)
         self.http_interface = kwargs.get("http_interface", "*")
+        self.firewall = kwargs.get("firewall", "auto")
 
 
 class ServerLayout(object):
@@ -715,6 +764,82 @@ def _enable_certbot_timer(host):
         run(["systemctl", "enable", "--now", "certbot.timer"], check=False)
 
 
+def firewall_ports(proxy, tls, http_port=5280, https_port=5281):
+    """Ports an XMPP host needs exposed, based on its web-server shape."""
+    ports = {5222, 5269}
+    if proxy:
+        ports.add(80)
+        if tls:
+            ports.add(443)
+    else:
+        ports.add(int(http_port))
+        if tls:
+            ports.add(int(https_port))
+    return sorted(ports)
+
+
+def ensure_firewall(host, ports, options, reporter, prompter):
+    """Offer to open ports in an already-active UFW/firewalld setup.
+
+    Proctor never edits iptables/nftables directly and never changes a firewall
+    during a non-interactive run unless --firewall yes was passed explicitly.
+    """
+    value = getattr(options, "firewall", "auto") or "auto"
+    if value not in ("auto", "yes", "no"):
+        raise ConfigError("firewall must be auto, yes or no")
+    if value == "no" or not ports:
+        return {"status": "skipped", "backend": None, "ports": list(ports)}
+
+    backend = None
+    active = False
+    if which("ufw"):
+        proc = run(["ufw", "status"], check=False)
+        text = ((proc.stdout or b"") + (proc.stderr or b"")).decode("utf-8", "replace")
+        if "Status: active" in text:
+            backend = "ufw"
+            active = True
+            commands = [["ufw", "allow", "%d/tcp" % port] for port in ports]
+    if not active and which("firewall-cmd"):
+        proc = run(["firewall-cmd", "--state"], check=False)
+        text = ((proc.stdout or b"") + (proc.stderr or b"")).decode("utf-8", "replace")
+        if "running" in text:
+            backend = "firewalld"
+            active = True
+            commands = [["firewall-cmd", "--permanent", "--add-port=%d/tcp" % port]
+                        for port in ports]
+            commands.append(["firewall-cmd", "--reload"])
+    if not active:
+        return {"status": "inactive", "backend": None, "ports": sorted(ports)}
+
+    if value == "auto":
+        if not prompter.interactive or prompter.assume_yes:
+            return {
+                "status": "skipped",
+                "backend": backend,
+                "ports": sorted(ports),
+                "hint": "firewall is active; pass --firewall yes to open these ports",
+            }
+        if not prompter.yes_no(
+                "%s is active. Open %s for XMPP/HTTP?" % (
+                    backend, ", ".join(str(port) for port in sorted(ports))),
+                default=True):
+            return {"status": "skipped", "backend": backend,
+                    "ports": sorted(ports)}
+
+    reporter.step("Opening firewall ports with %s: %s" % (
+        backend, ", ".join(str(port) for port in sorted(ports))))
+    failed = []
+    for command in commands:
+        proc = run(command, check=False)
+        if proc.returncode != 0:
+            failed.append(" ".join(command))
+    if failed:
+        reporter.warn("could not update %s: %s" % (backend, "; ".join(failed)))
+        return {"status": "failed", "backend": backend,
+                "ports": sorted(ports), "failed": failed}
+    return {"status": "opened", "backend": backend, "ports": sorted(ports)}
+
+
 def _wanted_certbot(source_le, source_web, options, prompter, setup=False):
     value = options.certbot or "auto"
     if value == "no":
@@ -926,7 +1051,7 @@ def _lua_string(value):
 
 
 def prosody_config_text(layout, domains, admin, tls, cert_name, storage="internal_hashed",
-                        proxy=True, http_port=5280, http_interface="127.0.0.1"):
+                        proxy=True, http_port=5280, http_interface="*"):
     if not domains:
         raise ConfigError("at least one XMPP domain is required")
     admin = admin or ("admin@" + domains[0])
@@ -955,6 +1080,7 @@ def prosody_config_text(layout, domains, admin, tls, cert_name, storage="interna
     else:
         lines.append("storage = %s" % _lua_string(storage or "internal_hashed"))
         layout.storage = storage or "internal_hashed"
+    cert_root = certificate_root(cert_name) if cert_name else None
     lines.extend([
         "",
         "modules_enabled = {",
@@ -972,7 +1098,7 @@ def prosody_config_text(layout, domains, admin, tls, cert_name, storage="interna
         "http_ports = { %d }" % int(http_port),
         "http_interfaces = { %s }" % _lua_string(
             "127.0.0.1" if proxy else (http_interface or "*")),
-        "https_ports = { 5281 }" if tls else "https_ports = { }",
+        "https_ports = { 5281 }" if (tls and not proxy) else "https_ports = { }",
         "c2s_ports = { 5222 }",
         "s2s_ports = { 5269 }",
         "legacy_ssl_ports = { }",
@@ -981,9 +1107,19 @@ def prosody_config_text(layout, domains, admin, tls, cert_name, storage="interna
         "    { levels = { min = \"info\" }; to = \"file\"; filename = %s };"
         % _lua_string(os.path.join(layout.log_dir, "prosody.log")),
         "}",
-        "",
     ])
-    cert_root = certificate_root(cert_name) if cert_name else None
+    if tls and not proxy and cert_root:
+        # Direct HTTPS/BOSH (no reverse proxy) needs its own certificate. The
+        # nginx/Apache path terminates TLS, so Prosody should not also bind 5281.
+        lines.extend([
+            "",
+            "https_ssl = {",
+            "    key = %s;" % _lua_string(os.path.join(cert_root, "privkey.pem")),
+            "    certificate = %s;" % _lua_string(
+                os.path.join(cert_root, "fullchain.pem")),
+            "}",
+        ])
+    lines.append("")
     for domain in domains:
         lines.append("VirtualHost %s" % _lua_string(domain))
         if tls and cert_root:
@@ -1381,8 +1517,7 @@ def finalize_restore(config, manifest, target, prepared, options, reporter, prom
                                backend_host, backend_port)
         applied = apply_web_config(config, web, text, reporter)
         result["config"] = applied.get("path")
-    if tls:
-        grant_certificate_access(target)
+    grant_certificate_access(target, reporter)
     if prepared.get("certbot") and not prepared.get("certbot_installed"):
         reporter.warn("certbot is not installed; automatic certificate renewal is unavailable")
     if prepared.get("certbot"):
@@ -1394,6 +1529,10 @@ def finalize_restore(config, manifest, target, prepared, options, reporter, prom
                 "certbot was used on the source host but no web server is configured "
                 "here; automatic renewal may need manual attention"
             )
+    result["firewall"] = ensure_firewall(
+        config.host, firewall_ports(bool(proxy and web is not None), tls, backend_port),
+        options, reporter, prompter,
+    )
     return result
 
 
@@ -1541,7 +1680,7 @@ def setup_server(config, options, reporter):
         tls = obtain_certificate(web, domains, email, cert_name, reporter,
                                  backend="webroot" if web is not None else "standalone")
     if tls:
-        grant_certificate_access(layout)
+        grant_certificate_access(layout, reporter)
     if certbot_wanted:
         install_renewal_hook(layout, web)
         if web is not None:
@@ -1576,8 +1715,12 @@ def setup_server(config, options, reporter):
         applied = None
     if tls:
         _chown_prosody_paths(layout)
-        grant_certificate_access(layout)
+        grant_certificate_access(layout, reporter)
     admin_result = _register_admin(config, layout, admin, options, prompter, reporter)
+    firewall = ensure_firewall(
+        host, firewall_ports(bool(proxy), tls, options.http_port), options,
+        reporter, prompter,
+    )
     return {
         "domains": domains,
         "admin": admin,
@@ -1591,6 +1734,7 @@ def setup_server(config, options, reporter):
         "cert_name": cert_name,
         "web_config": applied.get("path") if applied else None,
         "admin_created": admin_result,
+        "firewall": firewall,
     }
 
 
@@ -1661,12 +1805,53 @@ def _relabel(paths):
     run(["restorecon", "-R"] + existing, check=False)
 
 
-def grant_certificate_access(layout):
-    """Let the Prosody user read certbot's private keys and traverse archive dirs."""
-    gid = gid_for(layout.group)
+def grant_certificate_access(layout, reporter=None):
+    """Let the Prosody user read certbot's private keys and traverse its tree.
+
+    Certbot creates /etc/letsencrypt with mode 0700. Making live/ and archive/
+    readable is not enough: without execute permission on the parent directory
+    Prosody cannot resolve the live symlinks. Prefer POSIX ACLs when setfacl is
+    available, and fall back to a group-readable private key plus traversal
+    permissions.
+    """
+    if layout is None or not os.path.isdir(CERTBOT_ROOT):
+        return False
+    user = getattr(layout, "user", None) or "prosody"
+    group = getattr(layout, "group", None) or user
+    if which("setfacl") and uid_for(user) is not None:
+        acl = ["u:%s" % user]
+        commands = [
+            ["setfacl", "-m", acl[0] + ":x", CERTBOT_ROOT],
+            ["setfacl", "-R", "-m", acl[0] + ":rX", CERTBOT_LIVE],
+            ["setfacl", "-R", "-m", acl[0] + ":rX", CERTBOT_ARCHIVE],
+        ]
+        results = []
+        for command in commands:
+            if not os.path.isdir(command[-1]):
+                continue
+            proc = run(command, check=False)
+            results.append(proc.returncode == 0)
+        if results and all(results):
+            return True
+
+    gid = gid_for(group)
+    # Traversal-only on the parent; the live and archive directories need to be
+    # listable so Prosody can resolve Certbot's timestamped symlink targets.
+    for path in (CERTBOT_ROOT, CERTBOT_LIVE, CERTBOT_ARCHIVE):
+        if not os.path.isdir(path):
+            continue
+        try:
+            os.chmod(path, 0o711 if path == CERTBOT_ROOT else 0o755)
+        except OSError:
+            pass
     if gid is None:
-        return
-    bases = [CERTBOT_LIVE, "/etc/letsencrypt/archive"]
+        if reporter is not None:
+            reporter.warn(
+                "cannot grant %s access to Certbot private keys: group %r does not exist"
+                % (user, group)
+            )
+        return False
+    bases = [CERTBOT_LIVE, CERTBOT_ARCHIVE]
     for base in bases:
         if not os.path.isdir(base):
             continue
@@ -1678,14 +1863,14 @@ def grant_certificate_access(layout):
             for name in filenames:
                 path = os.path.join(dirpath, name)
                 try:
-                    stat = os.stat(path)
                     if name.startswith("privkey"):
-                        os.chown(path, stat.st_uid, gid)
+                        os.chown(path, -1, gid)
                         os.chmod(path, 0o640)
                     elif name.endswith((".pem", ".crt")):
                         os.chmod(path, 0o644)
                 except OSError:
                     continue
+    return True
 
 
 def install_renewal_hook(layout, web=None, dry_run=False):
@@ -1694,6 +1879,7 @@ def install_renewal_hook(layout, web=None, dry_run=False):
     if dry_run:
         return path
     ensure_dir(os.path.dirname(path), mode=0o755)
+    user = layout.user or "prosody"
     group = layout.group or "prosody"
     services = [layout.service_name or "prosody"]
     if web is not None and web.service:
@@ -1719,12 +1905,31 @@ def install_renewal_hook(layout, web=None, dry_run=False):
     script = "\n".join([
         "#!/bin/sh",
         "# Managed by proctor: certbot deploy hook after renewal.",
-        "for f in /etc/letsencrypt/archive/*/privkey*.pem; do",
-        "    [ -e \"$f\" ] || continue",
-        "    chgrp %s \"$f\" 2>/dev/null || true" % shlex.quote(group),
-        "    chmod 640 \"$f\" 2>/dev/null || true",
-        "done",
-        "chmod 755 /etc/letsencrypt/archive /etc/letsencrypt/archive/* 2>/dev/null || true",
+        "chmod 711 %s 2>/dev/null || true" % shlex.quote(CERTBOT_ROOT),
+        "if command -v setfacl >/dev/null 2>&1; then",
+        "    setfacl -m u:%s:x %s 2>/dev/null || true"
+        % (shlex.quote(user), shlex.quote(CERTBOT_ROOT)),
+        "    setfacl -R -m u:%s:rX %s %s 2>/dev/null || true"
+        % (shlex.quote(user), shlex.quote(CERTBOT_LIVE),
+           shlex.quote(CERTBOT_ARCHIVE)),
+        "else",
+        "    chmod 711 %s 2>/dev/null || true" % shlex.quote(CERTBOT_ROOT),
+        "    for d in %s %s; do"
+        % (shlex.quote(CERTBOT_LIVE), shlex.quote(CERTBOT_ARCHIVE)),
+        "        [ -d \"$d\" ] || continue",
+        "        chmod 755 \"$d\" 2>/dev/null || true",
+        "        find \"$d\" -type d -exec chmod 755 {} + 2>/dev/null || true",
+        "    done",
+        "    for f in /etc/letsencrypt/archive/*/privkey*.pem; do",
+        "        [ -e \"$f\" ] || continue",
+        "        chgrp %s \"$f\" 2>/dev/null || true" % shlex.quote(group),
+        "        chmod 640 \"$f\" 2>/dev/null || true",
+        "    done",
+        "    for f in /etc/letsencrypt/archive/*/*.pem; do",
+        "        case \"$f\" in *privkey*) continue ;; esac",
+        "        [ -e \"$f\" ] && chmod 644 \"$f\" 2>/dev/null || true",
+        "    done",
+        "fi",
     ] + reload_lines + [""])
     atomic_write(path, script.encode("utf-8"), mode=0o755)
     return path
