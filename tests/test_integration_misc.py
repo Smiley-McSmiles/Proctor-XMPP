@@ -240,15 +240,18 @@ class ProvisioningTests(unittest.TestCase):
             user=pwd.getpwuid(os.getuid()).pw_name,
             group=grp.getgrgid(os.getgid()).gr_name,
         )
+        chown_calls = []
         with patch("proctor.provision.CERTBOT_ROOT", root), \
                 patch("proctor.provision.CERTBOT_LIVE", os.path.dirname(live)), \
                 patch("proctor.provision.CERTBOT_ARCHIVE", os.path.dirname(archive)), \
-                patch("proctor.provision.which", lambda name: None):
+                patch("proctor.provision.which", lambda name: None), \
+                patch("proctor.provision.os.chown",
+                      lambda path, uid, gid: chown_calls.append((uid, gid))):
             self.assertTrue(grant_certificate_access(layout))
         self.assertEqual(stat.S_IMODE(os.stat(root).st_mode), 0o711)
         self.assertEqual(stat.S_IMODE(os.stat(key).st_mode), 0o640)
         self.assertEqual(stat.S_IMODE(os.stat(fullchain).st_mode), 0o644)
-        self.assertEqual(os.stat(key).st_gid, os.getgid())
+        self.assertIn((-1, os.getgid()), chown_calls)
 
     def test_renewal_hook_repairs_parent_and_uses_acl(self):
         from unittest.mock import patch
