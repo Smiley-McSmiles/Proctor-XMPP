@@ -196,6 +196,8 @@ class ProvisioningTests(unittest.TestCase):
         self.assertEqual(firewall_ports(True, True), [80, 443, 5222, 5269])
         self.assertEqual(firewall_ports(True, False), [80, 5222, 5269])
         self.assertEqual(firewall_ports(False, True), [5222, 5269, 5280, 5281])
+        self.assertEqual(firewall_ports(False, True, web=True),
+                         [80, 443, 5222, 5269, 5280, 5281])
         host = SimpleNamespace()
         options = SimpleNamespace(firewall="auto")
         prompter = SimpleNamespace(interactive=False, assume_yes=True)

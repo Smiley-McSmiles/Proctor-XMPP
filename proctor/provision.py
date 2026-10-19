@@ -764,7 +764,7 @@ def _enable_certbot_timer(host):
         run(["systemctl", "enable", "--now", "certbot.timer"], check=False)
 
 
-def firewall_ports(proxy, tls, http_port=5280, https_port=5281):
+def firewall_ports(proxy, tls, http_port=5280, https_port=5281, web=False):
     """Ports an XMPP host needs exposed, based on its web-server shape."""
     ports = {5222, 5269}
     if proxy:
@@ -772,9 +772,15 @@ def firewall_ports(proxy, tls, http_port=5280, https_port=5281):
         if tls:
             ports.add(443)
     else:
+        # Direct Prosody HTTP/HTTPS, even if a web server is only serving
+        # ACME/redirects and not proxying XMPP endpoints.
         ports.add(int(http_port))
         if tls:
             ports.add(int(https_port))
+        if web:
+            ports.add(80)
+            if tls:
+                ports.add(443)
     return sorted(ports)
 
 
@@ -1530,7 +1536,8 @@ def finalize_restore(config, manifest, target, prepared, options, reporter, prom
                 "here; automatic renewal may need manual attention"
             )
     result["firewall"] = ensure_firewall(
-        config.host, firewall_ports(bool(proxy and web is not None), tls, backend_port),
+        config.host, firewall_ports(bool(proxy and web is not None), tls, backend_port,
+                                    web=web is not None),
         options, reporter, prompter,
     )
     return result
@@ -1718,7 +1725,8 @@ def setup_server(config, options, reporter):
         grant_certificate_access(layout, reporter)
     admin_result = _register_admin(config, layout, admin, options, prompter, reporter)
     firewall = ensure_firewall(
-        host, firewall_ports(bool(proxy), tls, options.http_port), options,
+        host, firewall_ports(bool(proxy), tls, options.http_port,
+                             web=web is not None), options,
         reporter, prompter,
     )
     return {
