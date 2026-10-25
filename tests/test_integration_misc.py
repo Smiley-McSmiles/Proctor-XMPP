@@ -160,8 +160,9 @@ class ProvisioningTests(unittest.TestCase):
             )
         self.assertIn('"saslauth"', text)
         self.assertNotIn('"sasl"', text)
-        self.assertIn('"adhoc"', text)
-        self.assertIn('"admin_adhoc"', text)
+        for module in ("adhoc", "admin_adhoc", "invites", "invites_adhoc",
+                       "invites_register"):
+            self.assertIn('"%s"' % module, text)
         for module in ("mam", "pep", "bookmarks", "csi_simple", "cloud_notify"):
             self.assertIn('"%s"' % module, text)
         self.assertIn('Component "conference.example.com" "muc"', text)

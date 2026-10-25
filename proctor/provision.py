@@ -1188,7 +1188,8 @@ def prosody_config_text(layout, domains, admin, tls, cert_name, storage="interna
         "tls", "dialback", "disco", "carbons", "ping", "version", "time",
         "http", "bosh", "websocket",
     ])
-    for admin_module in ("adhoc", "admin_adhoc"):
+    for admin_module in ("adhoc", "admin_adhoc", "invites", "invites_adhoc",
+                         "invites_register"):
         selected = _prosody_module_choice(admin_module)
         if selected:
             modules.append(selected)

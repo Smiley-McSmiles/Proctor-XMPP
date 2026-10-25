@@ -33,6 +33,8 @@
   when checking certificate expiry.
 - Enable `adhoc` and `admin_adhoc` in generated Prosody configs so server
   administration (XEP-0050/0133) is available to configured admins.
+- Enable `invites`, `invites_adhoc` and `invites_register` so admins can create
+  account invitation links (XEP-0401).
 - Enable recommended Prosody features by default: `mam`, `pep`, `bookmarks`,
   `csi_simple` and `cloud_notify`, plus `mam` on the MUC component.
 - Detect Prosody modules stored in `mod_<name>/` directories (such as
