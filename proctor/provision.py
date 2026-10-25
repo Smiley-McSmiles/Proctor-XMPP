@@ -1036,6 +1036,39 @@ def has_certificate(cert_name):
             and os.path.isfile(os.path.join(root, "privkey.pem")))
 
 
+def certificate_domains(cert_name):
+    """Return the DNS SANs of an existing certificate, or None if unknown."""
+    root = certificate_root(cert_name)
+    fullchain = os.path.join(root, "fullchain.pem")
+    if not os.path.isfile(fullchain) or not which("openssl"):
+        return None
+    proc = run(["openssl", "x509", "-in", fullchain, "-noout",
+                "-ext", "subjectAltName"], check=False)
+    if proc.returncode != 0:
+        return None
+    text = ((proc.stdout or b"") + (proc.stderr or b"")).decode("utf-8", "replace")
+    return set(name.lower() for name in re.findall(r"DNS:([^,\s]+)", text))
+
+
+def _certificate_name_matches(pattern, domain):
+    if pattern == domain:
+        return True
+    if not pattern.startswith("*."):
+        return False
+    suffix = pattern[1:]
+    return domain.endswith(suffix) and "." not in domain[:-len(suffix)]
+
+
+def missing_certificate_domains(cert_name, domains):
+    """Domains requested for the vhost but absent from an existing cert."""
+    covered = certificate_domains(cert_name)
+    if covered is None:
+        return []
+    return [domain for domain in domains
+            if not any(_certificate_name_matches(name, domain)
+                       for name in covered)]
+
+
 def _safe_cert_name(value):
     value = str(value).strip()
     value = re.sub(r"[^A-Za-z0-9._-]+", "-", value).strip("-")
@@ -1549,17 +1582,24 @@ def obtain_certificate(web, domains, email, cert_name, reporter, dry_run=False,
     if not domains:
         return False
     cert_name = _safe_cert_name(cert_name or domains[0])
-    if has_certificate(cert_name):
+    missing = missing_certificate_domains(cert_name, domains)
+    if has_certificate(cert_name) and not missing:
         return True
     if dry_run:
         reporter.info("Would request a certificate for %s with certbot" % ", ".join(domains))
         return False
+    if has_certificate(cert_name) and missing:
+        reporter.warn(
+            "existing certificate %s does not cover %s; requesting an expanded "
+            "certificate" % (cert_name, ", ".join(missing))
+        )
     if not email:
         raise ConfigError("certbot requires an email address",
                           hint="pass --email or configure provision.email")
     command = ["certbot", "certonly", "--cert-name", cert_name,
                "--email", email, "--agree-tos", "--non-interactive",
-               "--keep-until-expiring", "--preferred-challenges", "http"]
+               "--keep-until-expiring", "--expand",
+               "--preferred-challenges", "http"]
     if backend == "webroot":
         ensure_dir(os.path.join(WEBROOT, ".well-known", "acme-challenge"), mode=0o755)
         command.extend(["--webroot", "-w", WEBROOT])
@@ -1824,8 +1864,10 @@ def setup_server(config, options, reporter):
         options, reporter, prompter,
     )
     if certbot_wanted:
-        tls = obtain_certificate(web, web_names, email, cert_name, reporter,
-                                 backend="webroot" if web is not None else "standalone")
+        obtain_certificate(web, web_names, email, cert_name, reporter,
+                           backend="webroot" if web is not None else "standalone")
+        # Keep using a previously valid certificate if expansion fails.
+        tls = has_certificate(cert_name)
     if tls:
         grant_certificate_access(layout, reporter)
     if certbot_wanted or tls:

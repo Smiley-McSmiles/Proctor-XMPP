@@ -116,6 +116,16 @@ class ProvisioningTests(unittest.TestCase):
         self.assertIn("c2s_require_encryption = false", text)
         self.assertIn("admin@example.com", text)
 
+    def test_missing_certificate_domains_handles_wildcards(self):
+        from proctor import provision
+        with mock.patch.object(provision, "certificate_domains",
+                               return_value={"example.com", "*.example.com"}):
+            self.assertEqual(provision.missing_certificate_domains(
+                "example.com", ["example.com", "upload.example.com"]), [])
+            self.assertEqual(provision.missing_certificate_domains(
+                "example.com", ["example.com", "a.b.example.com"]),
+                ["a.b.example.com"])
+
     def test_web_domains_include_service_hostnames(self):
         from proctor.provision import service_hostnames, web_domains
         self.assertEqual(service_hostnames(["example.com"]),
