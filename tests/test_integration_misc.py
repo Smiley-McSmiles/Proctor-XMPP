@@ -128,6 +128,24 @@ class ProvisioningTests(unittest.TestCase):
         self.assertNotIn('storage = "internal_hashed"', text)
         self.assertEqual(layout.storage, "internal")
 
+    def test_find_existing_certificate_reuses_letsencrypt(self):
+        from proctor import provision
+        root = tempfile.mkdtemp()
+        os.makedirs(os.path.join(root, "other"))
+        os.makedirs(os.path.join(root, "sonder.guru"))
+        sans = {
+            "other": {"other.example"},
+            "sonder.guru": {"sonder.guru", "*.sonder.guru"},
+        }
+        with mock.patch.object(provision, "CERTBOT_LIVE", root), \
+                mock.patch.object(provision, "has_certificate", return_value=True), \
+                mock.patch.object(provision, "certificate_domains",
+                                  side_effect=lambda name: sans[name]):
+            self.assertEqual(provision.find_existing_certificate(
+                ["sonder.guru", "upload.sonder.guru"]), "sonder.guru")
+            self.assertEqual(provision.find_existing_certificate(
+                ["sonder.guru", "a.b.sonder.guru"]), "sonder.guru")
+
     def test_missing_certificate_domains_handles_wildcards(self):
         from proctor import provision
         with mock.patch.object(provision, "certificate_domains",
@@ -137,6 +155,31 @@ class ProvisioningTests(unittest.TestCase):
             self.assertEqual(provision.missing_certificate_domains(
                 "example.com", ["example.com", "a.b.example.com"]),
                 ["a.b.example.com"])
+
+    def test_web_invite_config_and_page(self):
+        from proctor import provision
+        layout = self._layout()
+        text = provision.prosody_config_text(
+            layout, ["example.com"], "admin@example.com", True, "example.com",
+            proxy=True, web_invites=True,
+        )
+        self.assertIn("invites_page_external = true", text)
+        self.assertIn(
+            'invites_page = "https://example.com/ward-invite?{invite.token}"',
+            text)
+        self.assertIn('site_name = "example.com"', text)
+
+        root = tempfile.mkdtemp()
+        target = os.path.join(root, "invite", "index.html")
+        with mock.patch.object(provision, "INVITE_PAGE_DIR",
+                               os.path.dirname(target)), \
+                mock.patch.object(provision, "INVITE_PAGE_PATH", target):
+            path = provision.install_invite_page()
+        self.assertEqual(path, target)
+        with open(target, encoding="utf-8") as handle:
+            page = handle.read()
+        self.assertIn("Ward for Android", page)
+        self.assertIn("/register?t=", page)
 
     def test_web_domains_include_service_hostnames(self):
         from proctor.provision import service_hostnames, web_domains
@@ -258,6 +301,8 @@ class ProvisioningTests(unittest.TestCase):
         self.assertIn("proxy_pass http://127.0.0.1:5280", nginx)
         self.assertIn("ssl_certificate /etc/letsencrypt/live/example.com/fullchain.pem", nginx)
         self.assertIn("Upgrade $http_upgrade", nginx)
+        self.assertIn("location = /ward-invite", nginx)
+        self.assertIn("/usr/local/share/proctor/invite", nginx)
         apache = apache_config_text(["example.com"], False, "example.com", True,
                                     ["/http-bind", "/upload"])
         self.assertIn("<VirtualHost *:80>", apache)
