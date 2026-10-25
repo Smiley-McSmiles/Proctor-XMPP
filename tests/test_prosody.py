@@ -82,10 +82,13 @@ class ModuleDetectionTests(unittest.TestCase):
         root = tempfile.mkdtemp()
         os.makedirs(os.path.join(root, "muc"))
         open(os.path.join(root, "muc", "mod_muc.lua"), "w").close()
+        os.makedirs(os.path.join(root, "mod_mam"))
+        open(os.path.join(root, "mod_mam", "mod_mam.lua"), "w").close()
         open(os.path.join(root, "mod_saslauth.lua"), "w").close()
         install = object.__new__(ProsodyInstall)
         install.module_dirs = lambda: [root]
-        self.assertEqual(install.available_modules(), ["muc", "saslauth"])
+        self.assertEqual(install.available_modules(),
+                         ["mam", "muc", "saslauth"])
 
 
 class InstallTests(unittest.TestCase):

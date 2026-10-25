@@ -272,14 +272,14 @@ def turnserver_config_text(turn, secret, realm, cert=None, pkey=None,
     ])
     if external_ip:
         lines.extend(["", "# Public address behind NAT", "external-ip=%s" % external_ip])
-    if cert and pkey and not (turn.no_tls or no_tls):
+    if cert and pkey and not no_tls:
         lines.extend([
             "",
             "# TLS/DTLS certificates (also used for TURN over TLS on tls-listening-port)",
             "cert=%s" % cert,
             "pkey=%s" % pkey,
         ])
-    elif turn.no_tls or no_tls:
+    elif no_tls:
         lines.append("no-tls")
     extras = _preserved_lines(preserve)
     if extras:
@@ -344,9 +344,9 @@ def apply_turnserver_config(turn, secret, realm, cert=None, pkey=None,
         min_port=turn.min_port if turn.exists else DEFAULT_RELAY_MIN,
         max_port=turn.max_port if turn.exists else DEFAULT_RELAY_MAX,
         # A fresh install without a certificate must not try to serve TLS with
-        # coturn's built-in self-signed defaults. Prefer any certificate passed
-        # in by setup over the certificate detected in the old config.
-        no_tls=bool(turn.no_tls or not (cert and pkey)),
+        # coturn's built-in self-signed defaults. A certificate supplied by
+        # setup re-enables TLS even if the previous config had no-tls set.
+        no_tls=not (cert and pkey),
     )
     if dry_run:
         return text

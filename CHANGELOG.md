@@ -35,6 +35,10 @@
   administration (XEP-0050/0133) is available to configured admins.
 - Enable recommended Prosody features by default: `mam`, `pep`, `bookmarks`,
   `csi_simple` and `cloud_notify`, plus `mam` on the MUC component.
+- Detect Prosody modules stored in `mod_<name>/` directories (such as
+  `mod_mam`) so `doctor` does not report them as missing.
+- Re-enable coturn TLS whenever setup supplies a certificate, even if the old
+  `turnserver.conf` contained `no-tls`.
 - 87-case unittest suite.
 - Drop the macOS CI job; Linux and FreeBSD cover the supported server paths.
 
