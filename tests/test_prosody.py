@@ -76,6 +76,18 @@ class LuaParsingTests(unittest.TestCase):
         self.assertEqual(derive_log_dir(openbsd, "/etc/prosody"), "/var/log/prosody")
 
 
+class ModuleDetectionTests(unittest.TestCase):
+    def test_directory_modules_are_detected(self):
+        from proctor.prosody import ProsodyInstall
+        root = tempfile.mkdtemp()
+        os.makedirs(os.path.join(root, "muc"))
+        open(os.path.join(root, "muc", "mod_muc.lua"), "w").close()
+        open(os.path.join(root, "mod_saslauth.lua"), "w").close()
+        install = object.__new__(ProsodyInstall)
+        install.module_dirs = lambda: [root]
+        self.assertEqual(install.available_modules(), ["muc", "saslauth"])
+
+
 class InstallTests(unittest.TestCase):
     def test_install_flags_and_warnings(self):
         root = tempfile.mkdtemp()

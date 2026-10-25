@@ -22,7 +22,9 @@
   generated certificate request and web-server vhost.
 - Expand an existing Let's Encrypt certificate when the configured web/service
   hostnames are missing from its SANs, instead of silently reusing it.
-- 82-case unittest suite.
+- Detect multi-file Prosody modules such as `muc` and `pubsub` in `doctor`
+  instead of warning that they are missing.
+- 83-case unittest suite.
 - Drop the macOS CI job; Linux and FreeBSD cover the supported server paths.
 
 ## 1.0.1 — 2026-10-18
