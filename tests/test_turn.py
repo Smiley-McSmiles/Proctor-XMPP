@@ -7,7 +7,8 @@ from types import SimpleNamespace
 from unittest.mock import patch
 
 from proctor.turn import (
-    apply_turnserver_config, check_turn_auth, detect_coturn, ensure_turn_firewall,
+    apply_turn_web_config, apply_turnserver_config, check_turn_auth, detect_coturn,
+    ensure_turn_firewall,
     ensure_turn_selinux, firewall_state, parse_turnserver_conf,
     prosody_turn_settings, patch_prosody_config, turn_checks,
     turn_firewalld_service_xml, turn_ports, turn_web_config_text,
@@ -115,6 +116,21 @@ class TurnConfigTests(unittest.TestCase):
         self.assertIn("ServerName turn.example.com", text)
         self.assertIn("Alias /.well-known/acme-challenge/", text)
         self.assertNotIn("SSLEngine", text)
+
+    def test_turn_vhost_uses_its_own_file(self):
+        web = SimpleNamespace(
+            kind="nginx", conf_dir="/etc/nginx/conf.d",
+            main_config="/etc/nginx/nginx.conf", service="nginx",
+            test_command=["nginx", "-t"], installed=True,
+        )
+        with patch("proctor.turn.ensure_turn_acme_webroot"), \
+                patch("proctor.provision.apply_web_config",
+                      return_value={"path": "/etc/nginx/conf.d/proctor-turn.conf"}) as apply:
+            apply_turn_web_config(
+                SimpleNamespace(), web, "turn.example.com",
+                cert_name="example.com", tls=True, reporter=None)
+        self.assertEqual(apply.call_args.kwargs["filename"],
+                         "proctor-turn.conf")
 
     def test_ports(self):
         turn = self._turn(port=3478, tls_port=5349, no_udp=False, no_tls=False)
