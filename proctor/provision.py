@@ -1190,7 +1190,10 @@ def prosody_config_text(layout, domains, admin, tls, cert_name, storage="interna
         selected = _prosody_module_choice(admin_module)
         if selected:
             modules.append(selected)
-    modules.extend(["muc", "vcard", "private", "blocklist", "smacks"])
+    modules.extend([
+        "muc", "vcard", "private", "blocklist", "smacks",
+        "mam", "pep", "bookmarks", "csi_simple", "cloud_notify",
+    ])
     turn = normalize_turn(turn)
     if turn:
         modules.append("turn_external")
@@ -1285,6 +1288,7 @@ def prosody_config_text(layout, domains, admin, tls, cert_name, storage="interna
     if domains:
         base = domains[0]
         lines.append("Component %s \"muc\"" % _lua_string("conference." + base))
+        lines.append("    modules_enabled = { \"mam\" }")
         if upload_module:
             upload_host = "upload." + base
             lines.append("")

@@ -162,7 +162,10 @@ class ProvisioningTests(unittest.TestCase):
         self.assertNotIn('"sasl"', text)
         self.assertIn('"adhoc"', text)
         self.assertIn('"admin_adhoc"', text)
+        for module in ("mam", "pep", "bookmarks", "csi_simple", "cloud_notify"):
+            self.assertIn('"%s"' % module, text)
         self.assertIn('Component "conference.example.com" "muc"', text)
+        self.assertIn('    modules_enabled = { "mam" }', text)
         self.assertIn('Component "upload.example.com" "http_file_share"', text)
         self.assertIn('http_paths = { file_share = "/upload" }', text)
         self.assertIn("http_file_share_size_limit = 10485760", text)
