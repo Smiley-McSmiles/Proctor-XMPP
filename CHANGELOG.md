@@ -20,7 +20,9 @@
 - Generate an `upload.<domain>` HTTP file-sharing component alongside the MUC
   component, and include `conference.<domain>` and `upload.<domain>` in the
   generated certificate request and web-server vhost.
-- 81-case unittest suite.
+- Expand an existing Let's Encrypt certificate when the configured web/service
+  hostnames are missing from its SANs, instead of silently reusing it.
+- 82-case unittest suite.
 - Drop the macOS CI job; Linux and FreeBSD cover the supported server paths.
 
 ## 1.0.1 — 2026-10-18
