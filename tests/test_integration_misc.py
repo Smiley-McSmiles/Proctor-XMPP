@@ -160,6 +160,8 @@ class ProvisioningTests(unittest.TestCase):
             )
         self.assertIn('"saslauth"', text)
         self.assertNotIn('"sasl"', text)
+        self.assertIn('"adhoc"', text)
+        self.assertIn('"admin_adhoc"', text)
         self.assertIn('Component "conference.example.com" "muc"', text)
         self.assertIn('Component "upload.example.com" "http_file_share"', text)
         self.assertIn('http_paths = { file_share = "/upload" }', text)

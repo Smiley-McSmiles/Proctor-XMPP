@@ -31,6 +31,8 @@
   fallback labels in `doctor`; enable TURN over TLS when setup supplies a
   certificate even if the previous coturn config had none; skip private keys
   when checking certificate expiry.
+- Enable `adhoc` and `admin_adhoc` in generated Prosody configs so server
+  administration (XEP-0050/0133) is available to configured admins.
 - 87-case unittest suite.
 - Drop the macOS CI job; Linux and FreeBSD cover the supported server paths.
 
