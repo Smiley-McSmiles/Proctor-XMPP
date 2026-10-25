@@ -1153,10 +1153,11 @@ def _available_prosody_modules():
         except OSError:
             continue
         for name in names:
-            if not name.endswith(".lua"):
-                continue
-            stem = name[:-4]
-            available.add(stem[4:] if stem.startswith("mod_") else stem)
+            if name.endswith(".lua"):
+                stem = name[:-4]
+                available.add(stem[4:] if stem.startswith("mod_") else stem)
+            elif os.path.isfile(os.path.join(directory, name, "mod_%s.lua" % name)):
+                available.add(name)
     return available
 
 
@@ -1185,6 +1186,10 @@ def prosody_config_text(layout, domains, admin, tls, cert_name, storage="interna
         "tls", "dialback", "disco", "carbons", "ping", "version", "time",
         "http", "bosh", "websocket",
     ])
+    for admin_module in ("adhoc", "admin_adhoc"):
+        selected = _prosody_module_choice(admin_module)
+        if selected:
+            modules.append(selected)
     modules.extend(["muc", "vcard", "private", "blocklist", "smacks"])
     turn = normalize_turn(turn)
     if turn:
