@@ -1490,28 +1490,29 @@ def web_config_text(info, domains, tls, cert_name, proxy, proxy_paths,
     raise ConfigError("unsupported web server: %s" % info.kind)
 
 
-def web_config_path(config, info):
+def web_config_path(config, info, filename="proctor-xmpp.conf"):
     if info.kind == "nginx":
         if info.conf_dir:
-            return os.path.join(info.conf_dir, "proctor-xmpp.conf"), None
+            return os.path.join(info.conf_dir, filename), None
         if info.sites_available:
-            return (os.path.join(info.sites_available, "proctor-xmpp.conf"),
-                    os.path.join(info.sites_enabled, "proctor-xmpp.conf")
+            return (os.path.join(info.sites_available, filename),
+                    os.path.join(info.sites_enabled, filename)
                     if info.sites_enabled else None)
-        return os.path.join(info.config_root, "proctor-xmpp.conf"), None
+        return os.path.join(info.config_root, filename), None
     if info.kind == "apache":
         if config.host.family() == "debian" and info.sites_available:
-            return (os.path.join(info.sites_available, "proctor-xmpp.conf"),
-                    os.path.join(info.sites_enabled, "proctor-xmpp.conf")
+            return (os.path.join(info.sites_available, filename),
+                    os.path.join(info.sites_enabled, filename)
                     if info.sites_enabled else None)
         if info.conf_dir:
-            return os.path.join(info.conf_dir, "proctor-xmpp.conf"), None
-        return os.path.join(info.config_root, "proctor-xmpp.conf"), None
+            return os.path.join(info.conf_dir, filename), None
+        return os.path.join(info.config_root, filename), None
     raise ConfigError("unsupported web server: %s" % info.kind)
 
 
-def apply_web_config(config, info, text, reporter, dry_run=False):
-    path, link = web_config_path(config, info)
+def apply_web_config(config, info, text, reporter, dry_run=False,
+                    filename="proctor-xmpp.conf"):
+    path, link = web_config_path(config, info, filename)
     if dry_run:
         reporter.info("Would write %s" % path)
         return {"path": path, "link": link, "dry_run": True}

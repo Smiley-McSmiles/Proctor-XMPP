@@ -517,7 +517,8 @@ def apply_turn_web_config(config, web, domain, cert_name=None, tls=False,
         web = info
     if dry_run:
         return {"path": None, "text": text, "kind": web.kind}
-    result = apply_web_config(config, web, text, reporter, dry_run=False)
+    result = apply_web_config(config, web, text, reporter, dry_run=False,
+                              filename="proctor-turn.conf")
     result["text"] = text
     return result
 

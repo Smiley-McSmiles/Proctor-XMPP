@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+
+- Write the coturn/TURN nginx or Apache vhost to `proctor-turn.conf` instead of
+  overwriting `proctor-xmpp.conf`, which removed the BOSH, WebSocket and upload
+  proxy locations.
+- 89-case unittest suite.
+
 ## 1.0.2 — 2026-10-25
 
 - Generate Prosody configuration with current core module names
