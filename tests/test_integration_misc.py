@@ -116,6 +116,17 @@ class ProvisioningTests(unittest.TestCase):
         self.assertIn("c2s_require_encryption = false", text)
         self.assertIn("admin@example.com", text)
 
+    def test_web_domains_include_service_hostnames(self):
+        from proctor.provision import service_hostnames, web_domains
+        self.assertEqual(service_hostnames(["example.com"]),
+                         ["conference.example.com", "upload.example.com"])
+        self.assertEqual(web_domains(["example.com"]),
+                         ["example.com", "conference.example.com",
+                          "upload.example.com"])
+        self.assertEqual(web_domains(["example.com", "upload.example.com"]),
+                         ["example.com", "upload.example.com",
+                          "conference.example.com"])
+
     def test_prosody_config_uses_modern_module_names(self):
         from proctor import provision
         layout = self._layout()
@@ -127,9 +138,11 @@ class ProvisioningTests(unittest.TestCase):
             )
         self.assertIn('"saslauth"', text)
         self.assertNotIn('"sasl"', text)
-        self.assertIn('"http_file_share"', text)
+        self.assertIn('Component "conference.example.com" "muc"', text)
+        self.assertIn('Component "upload.example.com" "http_file_share"', text)
         self.assertIn('http_paths = { file_share = "/upload" }', text)
         self.assertIn("http_file_share_size_limit = 10485760", text)
+        self.assertIn('http_external_url = "http://upload.example.com"', text)
         self.assertIn("c2s_direct_tls_ports = { }", text)
         self.assertNotIn("legacy_ssl_ports", text)
         self.assertNotIn("cross_domain_bosh", text)
@@ -145,24 +158,26 @@ class ProvisioningTests(unittest.TestCase):
                 "example.com", proxy=True,
             )
         self.assertIn('"sasl"', text)
-        self.assertIn('"http_upload"', text)
+        self.assertIn('Component "upload.example.com" "http_upload"', text)
         self.assertIn("http_upload_file_size_limit = 10485760", text)
         self.assertNotIn("http_file_share", text)
 
     def test_prosody_bosh_tls_config_matches_proxy_mode(self):
-        from proctor.provision import prosody_config_text
+        from proctor import provision
         layout = self._layout()
-        proxied = prosody_config_text(
-            layout, ["example.com"], "admin@example.com", True, "example.com",
-            proxy=True,
-        )
+        with mock.patch.object(provision, "_available_prosody_modules",
+                               return_value=set()):
+            proxied = provision.prosody_config_text(
+                layout, ["example.com"], "admin@example.com", True, "example.com",
+                proxy=True,
+            )
+            direct = provision.prosody_config_text(
+                layout, ["example.com"], "admin@example.com", True, "example.com",
+                proxy=False,
+            )
         self.assertIn("https_ports = { }", proxied)
         self.assertNotIn("https_ssl = {", proxied)
-
-        direct = prosody_config_text(
-            layout, ["example.com"], "admin@example.com", True, "example.com",
-            proxy=False,
-        )
+        self.assertIn('http_external_url = "https://upload.example.com"', proxied)
         self.assertIn("https_ports = { 5281 }", direct)
         self.assertIn("https_ssl = {", direct)
         self.assertIn("/etc/letsencrypt/live/example.com/privkey.pem", direct)
@@ -408,7 +423,8 @@ class ProvisioningTests(unittest.TestCase):
         self.assertEqual(payload["domains"], ["example.com"])
         self.assertEqual(payload["webserver"], "nginx")
         self.assertIn('VirtualHost "example.com"', payload["prosody_config_preview"])
-        self.assertIn("server_name example.com", payload["web_config_preview"])
+        self.assertIn("server_name example.com conference.example.com "
+                      "upload.example.com", payload["web_config_preview"])
 
 
 class PathMapperTests(unittest.TestCase):

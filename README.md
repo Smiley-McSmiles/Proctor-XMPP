@@ -142,7 +142,9 @@ The prompts cover:
 - whether to obtain a Let's Encrypt certificate with certbot and the email,
 - the Prosody storage backend (internal hashed or SQLite),
 - an admin password (hidden input),
-- whether to open ports when UFW/firewalld is active.
+- whether to open ports when UFW/firewalld is active,
+- whether to set up coturn (`turn.<domain>`) for audio/video calls, with the
+  TURN hostname, ACME vhost, firewall ports and SELinux labels.
 
 It then refreshes package indexes, installs the native packages, writes
 `prosody.cfg.lua`, generates a reverse-proxy vhost, obtains certificates, grants
@@ -198,7 +200,8 @@ sudo proctor backup --encrypt
 | Command | Purpose |
 |---|---|
 | `proctor init` | Create the JSON config and 0700 backup repository. `--setup` runs guided installation. |
-| `proctor setup` | Install/configure Prosody, nginx or Apache, certbot, TLS, domains, firewall ports and an admin account. |
+| `proctor setup` | Install/configure Prosody, nginx or Apache, certbot, TLS, domains, firewall ports, optional coturn and an admin account. |
+| `proctor turn` | Check coturn/`mod_turn_external` (realm, secret, ports, firewall, SELinux, STUN/TURN). `--setup` provisions it. |
 | `proctor discover` | Show detected OS, init system, Prosody paths, storage, users. |
 | `proctor doctor` | Preflight/health checks (paths, DB clients, cert expiry, freshness). |
 | `proctor backup` | Create a backup. `--live`, `--verify`, `--include-logs`, `--only`, `--exclude`, `--exclude-path`, `--include-path`, `--encrypt`, `--compression gz\|xz\|zstd\|none`. |
@@ -529,6 +532,7 @@ retention.
 ## Documentation
 
 - [docs/SETUP.md](docs/SETUP.md) — interactive Prosody/nginx/Apache/certbot setup
+- [docs/TURN.md](docs/TURN.md) — coturn, TURN for calls, firewall/SELinux checks
 - [docs/PACKAGING.md](docs/PACKAGING.md) — native packages, tarball and release artifacts
 - [docs/MIGRATION.md](docs/MIGRATION.md) — server migration runbook
 - [docs/BACKUP-FORMAT.md](docs/BACKUP-FORMAT.md) — archive/manifest specification

@@ -117,7 +117,7 @@ Priority: optional
 Architecture: all
 Installed-Size: $size
 Depends: python3 (>= 3.8)
-Suggests: age, gnupg, postgresql-client, mariadb-client | mysql-client
+Suggests: coturn, age, gnupg, postgresql-client, mariadb-client | mysql-client
 Maintainer: $MAINTAINER
 Homepage: $URL
 Description: $DESC
@@ -143,7 +143,7 @@ URL:            $URL
 Source0:        $SRCNAME.tar.gz
 BuildArch:      noarch
 Requires:       python3 >= 3.8
-Suggests:       age, gnupg, postgresql, mariadb
+Suggests:       coturn, age, gnupg, postgresql, mariadb
 
 %description
 Proctor backs up, restores and migrates Prosody XMPP servers. It captures
@@ -204,6 +204,7 @@ url="$URL"
 license=('MIT')
 depends=('python')
 optdepends=(
+    'coturn: STUN/TURN for audio/video calls'
     'age: encrypted backups'
     'gnupg: encrypted backups'
     'postgresql: PostgreSQL storage'
@@ -232,6 +233,7 @@ build_arch() {
     python3 "$ROOT/packaging/mkarch.py" "$root" "$DIST/$NAME-$VERSION-1-any.pkg.tar.xz" \
         --name "$NAME" --version "$VERSION" --desc "$DESC" --url "$URL" \
         --depend python \
+        --optdepend 'coturn: STUN/TURN for audio/video calls' \
         --optdepend 'age: encrypted backups' \
         --optdepend 'gnupg: encrypted backups' \
         --optdepend 'postgresql: PostgreSQL storage' \

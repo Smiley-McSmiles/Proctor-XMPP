@@ -5,7 +5,9 @@ from __future__ import print_function
 import argparse
 import json
 import os
+import re
 import sys
+from types import SimpleNamespace
 
 from . import __version__
 from .analysis import diff_backup, list_users
@@ -86,6 +88,27 @@ def build_parser():
                         help="skip prosodyctl check config")
     doctor.add_argument("--prosody-config", metavar="FILE")
 
+    turn = command("turn", "check or set up coturn / mod_turn_external",
+                   aliases=["coturn"])
+    turn.add_argument("--check", action="store_true",
+                      help="only report coturn problems (default)")
+    turn.add_argument("--setup", action="store_true",
+                      help="write coturn + Prosody turn_external configuration")
+    turn.add_argument("--domain", action="append", default=[], metavar="DOMAIN",
+                      help="XMPP domain (repeatable); defaults to detected VirtualHosts")
+    turn.add_argument("--turn-host", metavar="HOST",
+                      help="TURN hostname/realm (default turn.<first-domain>)")
+    turn.add_argument("--turn-secret", metavar="SECRET")
+    turn.add_argument("--turn-external-ip", metavar="IP")
+    turn.add_argument("--webserver", choices=("auto", "none", "nginx", "apache"),
+                      default="auto")
+    turn.add_argument("--certbot", choices=("auto", "yes", "no"), default="auto")
+    turn.add_argument("--email", metavar="ADDRESS")
+    turn.add_argument("--firewall", choices=("auto", "yes", "no"), default="auto")
+    turn.add_argument("--dry-run", action="store_true")
+    turn.add_argument("--force", action="store_true",
+                      help="overwrite a non-Proctor turnserver.conf without asking")
+
     setup = command("setup", "install and configure Prosody, nginx/Apache and certbot")
     setup.add_argument("--domain", action="append", default=[], metavar="DOMAIN",
                        help="XMPP domain (repeatable)")
@@ -96,6 +119,14 @@ def build_parser():
     setup.add_argument("--email", metavar="ADDRESS", help="Let's Encrypt email")
     setup.add_argument("--firewall", choices=("auto", "yes", "no"), default="auto",
                        help="open XMPP/HTTP ports when UFW or firewalld is active")
+    setup.add_argument("--turn", choices=("auto", "yes", "no"), default="auto",
+                       help="set up coturn and mod_turn_external for audio/video calls")
+    setup.add_argument("--turn-host", metavar="HOST",
+                       help="TURN hostname/realm (default turn.<first-domain>)")
+    setup.add_argument("--turn-secret", metavar="SECRET",
+                       help="shared secret (default: generate a random one)")
+    setup.add_argument("--turn-external-ip", metavar="IP",
+                       help="public address for coturn behind NAT")
     setup.add_argument("--storage", choices=("internal_hashed", "sqlite", "sql"),
                        default=None,
                        help="storage backend (asks interactively if omitted)")
@@ -332,6 +363,8 @@ def _dispatch(args, reporter):
                             check_config=not args.no_config_check)
         reporter.emit(result, human=_fmt_doctor)
         return EXIT_OK if result["ok"] else EXIT_FAILURE
+    if command in ("turn", "coturn"):
+        return _cmd_turn(args, config, reporter)
     if command in ("backup", "create"):
         return _cmd_backup(args, config, repository, reporter)
     if command in ("list", "ls"):
@@ -490,10 +523,128 @@ def _cmd_setup(args, config, reporter):
         assume_yes=args.yes,
         force=args.force,
         firewall=args.firewall,
+        turn=args.turn,
+        turn_host=args.turn_host,
+        turn_secret=args.turn_secret,
+        turn_external_ip=args.turn_external_ip,
     )
     result = setup_server(config, options, reporter)
     reporter.emit(result, human=_fmt_setup)
     return EXIT_FAILURE if result.get("certbot_failed") else EXIT_OK
+
+
+def _cmd_turn(args, config, reporter):
+    from .turn import (
+        detect_coturn, patch_prosody_config, prosody_turn_settings,
+        setup_turn, turn_checks, turn_realm, validate_turnserver_conf,
+    )
+    from .provision import (
+        ProvisionOptions, Prompter, detect_prosody, detect_webserver,
+        normalize_domains,
+    )
+    domains = normalize_domains(args.domain)
+    install = None
+    try:
+        install = detect_prosody(config.host, overrides={
+            "config": config.prosody.get("config"),
+            "data_dir": config.prosody.get("data_dir"),
+        }, require=False)
+    except ProctorError:
+        install = None
+    if not domains and install is not None:
+        domains = list(install.virtualhosts or [])
+    if args.setup:
+        if not domains:
+            raise ConfigError("--domain is required when Prosody is not configured yet")
+        realm = turn_realm(domains, args.turn_host)
+        options = ProvisionOptions(
+            install_missing=None,
+            webserver=args.webserver,
+            certbot=args.certbot,
+            email=args.email,
+            domains=domains,
+            turn="yes",
+            turn_host=args.turn_host,
+            turn_secret=args.turn_secret,
+            turn_external_ip=args.turn_external_ip,
+            firewall=args.firewall,
+            dry_run=args.dry_run,
+            force=args.force,
+        )
+        prompter = Prompter(assume_yes=bool(args.yes))
+        web = None
+        if (args.webserver or "auto") != "none":
+            web = detect_webserver(config.host) if (args.webserver or "auto") == "auto" \
+                else SimpleNamespace(kind=args.webserver)
+        cert_name = domains[0] if which_certificate(domains[0]) else None
+        result = setup_turn(
+            config, options, reporter, prompter, domains, web,
+            bool(args.certbot == "yes"),
+            email=args.email, cert_name=cert_name, realm=realm,
+        )
+        if result.get("config") and not args.dry_run and result.get("installed", {}).get("installed"):
+            result["config_path"] = "/etc/coturn/turnserver.conf"
+        if result.get("secret"):
+            settings = prosody_turn_settings(domains[0], result["secret"])
+            config_path = config.prosody.get("config")
+            if config_path:
+                if args.dry_run:
+                    preview = patch_prosody_config(config_path, settings, dry_run=True)
+                    result["prosody_config_preview"] = preview
+                else:
+                    patch_prosody_config(config_path, settings)
+        reporter.emit(result, human=_fmt_turn_setup)
+        return EXIT_FAILURE if result.get("validated") is False else EXIT_OK
+    turn = detect_coturn()
+    checks = turn_checks(config, install)
+    result = {"turn": turn.as_dict(), "checks": checks,
+              "ok": not any(status == "fail" for _name, status, _detail in checks)}
+    reporter.emit(result, human=_fmt_turn_checks)
+    return EXIT_OK if result["ok"] else EXIT_FAILURE
+
+
+def which_certificate(name):
+    from .provision import has_certificate
+    try:
+        return has_certificate(name)
+    except Exception:
+        return False
+
+
+def _fmt_turn_checks(value):
+    rows = [[status.upper(), name, detail]
+            for name, status, detail in value["checks"]]
+    if not rows:
+        return "coturn is not installed and /etc/coturn/turnserver.conf is missing."
+    return "%s\n\nRun 'sudo proctor turn --setup' to generate a working config." % table(
+        ["STATUS", "CHECK", "DETAIL"], rows)
+
+
+def _fmt_turn_setup(value):
+    web = value.get("web") or {}
+    lines = [
+        "coturn setup%s" % (" (dry run, no changes)" if value.get("dry_run") else ""),
+        "Realm:      %s" % (value.get("realm") or "-"),
+        "Secret:     %s" % ("set (see /etc/coturn/turnserver.conf)" if value.get("secret") else "-"),
+        "Config:     %s" % (value.get("config_path") or "-"),
+        "Vhost:      %s" % (web.get("path") or "-"),
+        "Firewall:   %s" % _firewall_text(value.get("firewall") or {}),
+        "SELinux:    %s" % ((value.get("selinux") or {}).get("status") or "-"),
+        "Service:    %s" % ((value.get("service") or {}).get("status") or "-"),
+    ]
+    firewall = value.get("firewall") or {}
+    if firewall.get("relay_range"):
+        lines.append("Relay UDP:  %s" % firewall["relay_range"])
+    if value.get("validated") is False:
+        lines.append("WARNING: coturn rejected the generated configuration")
+    if value.get("config"):
+        redacted = re.sub(r"(?m)^(static-auth-secret=).*$", r"\1<redacted>", value["config"])
+        lines.extend(["", "# turnserver.conf", redacted])
+    if web.get("text"):
+        lines.extend(["", "# %s vhost" % (web.get("kind") or "web"), web["text"]])
+    if value.get("prosody_config_preview"):
+        lines.extend(["", "# Prosody preview", value["prosody_config_preview"]])
+    return "\n".join(lines)
 
 
 def _cmd_backup(args, config, repository, reporter):
@@ -960,6 +1111,14 @@ def _fmt_restore(value):
             lines.append("TLS warning:    certbot did not produce a certificate")
     if web.get("firewall"):
         lines.append("Firewall:       %s" % _firewall_text(web["firewall"]))
+    turn = value.get("turn") or {}
+    if provisioning.get("turn"):
+        lines.append("TURN:           %s (realm %s)" % (
+            "configured" if value.get("turn") else "requested",
+            provisioning.get("turn_realm") or "-"))
+    elif turn.get("enabled"):
+        lines.append("TURN:           %s (realm %s)" % (
+            "configured", turn.get("realm") or "-"))
     if value.get("rewritten_configs"):
         lines.append("Rewritten configs:")
         lines.extend("  - %s" % item for item in value["rewritten_configs"])
@@ -1019,6 +1178,8 @@ def _fmt_setup(value):
             "Install:     %s" % ("Prosody is missing" if value.get("install_prosody")
                                   else "Prosody is already installed"),
             "Packages:    %s" % value.get("packages"),
+            "TURN:        %s" % (
+                (value.get("turn") or {}).get("realm") or "no"),
             "",
             value.get("prosody_config_preview", ""),
         ]
@@ -1044,6 +1205,13 @@ def _fmt_setup(value):
     ]
     if value.get("firewall"):
         lines.append("Firewall:    %s" % _firewall_text(value["firewall"]))
+    turn = value.get("turn") or {}
+    if turn:
+        lines.append("TURN:        %s (realm %s, config %s)" % (
+            "enabled" if turn.get("installed", {}).get("installed") else "skipped",
+            turn.get("realm") or "-", turn.get("config_path") or "-"))
+        if turn.get("validated") is False:
+            lines.append("TURN warning: coturn rejected the generated configuration")
     if value.get("certbot_failed"):
         lines.append("WARNING: certbot did not produce a certificate; check DNS/port 80")
     return "\n".join(lines)

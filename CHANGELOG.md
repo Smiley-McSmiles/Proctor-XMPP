@@ -9,6 +9,19 @@
   `legacy_ssl_ports` options.
 - Open firewall ports before certbot runs so HTTP-01 validation is not blocked
   by an active UFW/firewalld setup.
+- coturn/`mod_turn_external` support: `proctor setup --turn`, `proctor turn
+  --setup`, TURN vhost on nginx/Apache with ACME webroot, certificate ACLs for
+  the coturn user, firewalld service (including the UDP relay range), UFW rules
+  and SELinux port labels.
+- `proctor turn` / `doctor` checks: realm, REST API secret, conflicting auth,
+  relay range, certificates, live STUN/TURN realm+nonce probe, realm mismatch,
+  firewall and SELinux state.
+- Backups record TURN settings; restore/migrate recreate coturn.
+- Generate an `upload.<domain>` HTTP file-sharing component alongside the MUC
+  component, and include `conference.<domain>` and `upload.<domain>` in the
+  generated certificate request and web-server vhost.
+- 81-case unittest suite.
+- Drop the macOS CI job; Linux and FreeBSD cover the supported server paths.
 
 ## 1.0.1 — 2026-10-18
 
