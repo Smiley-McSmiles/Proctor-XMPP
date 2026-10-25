@@ -1858,7 +1858,6 @@ def setup_server(config, options, reporter):
     if options.assume_yes and not options.domains:
         raise ConfigError("--domain is required with --yes",
                           hint="pass --domain example.com (repeatable)")
-    prosody_action = {}
     if not options.dry_run:
         prosody_action = ensure_prosody(config, options, reporter, prompter)
         if not prosody_action.get("installed"):
@@ -1957,6 +1956,7 @@ def setup_server(config, options, reporter):
                 "webserver": web_packages(host, kind) if kind else [],
                 "certbot": certbot_packages(host) if certbot_wanted else [],
                 "turn": turn_packages(host) if turn_wanted else [],
+                "mercurial": mercurial_packages(host) if not which("hg") else [],
             },
             "prosody_config_preview": config_text,
             "web_config_preview": web_preview,
@@ -2039,7 +2039,7 @@ def setup_server(config, options, reporter):
     _relabel([layout.config_dir, layout.data_dir, layout.log_dir])
     modules_result = ensure_community_modules(
         config, options, reporter, prompter, config_text,
-        install_mercurial=bool(prosody_action.get("new")),
+        install_mercurial=True,
     )
     reporter.step("Checking generated Prosody configuration")
     from .service import validate_prosody_config
