@@ -179,7 +179,9 @@ class ProvisioningTests(unittest.TestCase):
         with open(target, encoding="utf-8") as handle:
             page = handle.read()
         self.assertIn("Ward for Android", page)
-        self.assertIn("/register?t=", page)
+        self.assertIn('action="/register"', page)
+        self.assertIn('name="user"', page)
+        self.assertIn('name="password"', page)
 
     def test_web_domains_include_service_hostnames(self):
         from proctor.provision import service_hostnames, web_domains
@@ -303,6 +305,11 @@ class ProvisioningTests(unittest.TestCase):
         self.assertIn("Upgrade $http_upgrade", nginx)
         self.assertIn("location = /ward-invite", nginx)
         self.assertIn("/usr/local/share/proctor/invite", nginx)
+        self.assertIn("location ^~ /register", nginx)
+        direct = nginx_config_text(["example.com"], False, "example.com", False,
+                                   ["/http-bind"])
+        self.assertIn("location ^~ /register", direct)
+        self.assertIn("proxy_pass http://127.0.0.1:5280", direct)
         apache = apache_config_text(["example.com"], False, "example.com", True,
                                     ["/http-bind", "/upload"])
         self.assertIn("<VirtualHost *:80>", apache)

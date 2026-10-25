@@ -1537,7 +1537,11 @@ def nginx_config_text(domains, tls, cert_name, proxy, proxy_paths,
         "        default_type text/plain;\n"
         "    }"
     )
-    invite = _invite_nginx_locations()
+    proxy_paths = [path for path in proxy_paths if path != "/register"]
+    # Web registration always goes through the web server, even when the
+    # operator chose direct Prosody HTTP ports for XMPP and uploads.
+    invite = (_invite_nginx_locations() + "\n" +
+              _proxy_nginx(backend_host, backend_port, ["/register"]))
     proxy_block = _proxy_nginx(backend_host, backend_port, proxy_paths) if proxy else ""
     fallback = "    location / {\n        return 404;\n    }"
     head = (
@@ -1608,12 +1612,15 @@ def apache_config_text(domains, tls, cert_name, proxy, proxy_paths,
     names = domains[0]
     aliases = " ".join(domains[1:])
     root = certificate_root(cert_name) if cert_name else ""
+    proxy_paths = [path for path in proxy_paths if path != "/register"]
     proxy_block = _proxy_apache(backend_host, backend_port, proxy_paths) if proxy else ""
     invite = (
         "    Alias /ward-invite %s/index.html\n"
         "    <Directory %s>\n"
         "        Require all granted\n"
-        "    </Directory>" % (INVITE_PAGE_DIR, INVITE_PAGE_DIR)
+        "    </Directory>\n"
+        "%s" % (INVITE_PAGE_DIR, INVITE_PAGE_DIR,
+                _proxy_apache(backend_host, backend_port, ["/register"]))
     )
     http = (
         "# Managed by proctor. Manual changes may be overwritten.\n"

@@ -7,7 +7,10 @@
   `/invites_page` and `/register`, and set `http_external_url` for correct
   HTTPS invite links.
 - Serve a custom Ward invitation landing page recommending Ward for Linux/BSD
-  and Ward for Android at `/ward-invite`.
+  and Ward for Android at `/ward-invite`, with inline username/password
+  registration and a styled success screen.
+- Proxy `/register` through the web server even when general HTTP/BOSH/upload
+  proxying is disabled, so web invitation links work in direct-Prosody mode.
 - Reuse a pre-existing certificate from `/etc/letsencrypt/live/` instead of
   asking certbot to reissue it when setup is run again.
 

@@ -111,6 +111,33 @@
   .btn.ghost { color: var(--ink); background: var(--card); border-color: var(--line); backdrop-filter: blur(18px); }
   .btn[aria-disabled="true"] { opacity: .45; pointer-events: none; }
   .small-note { font-size: 12.5px; color: var(--ink-soft); margin: 14px 0 0; }
+  .signup { display: grid; gap: 13px; max-width: 620px; margin: 2px 0 0; }
+  .signup .row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .field { display: grid; gap: 7px; color: var(--ink-soft); font-size: 11.5px; font-weight: 800; letter-spacing: .04em; text-transform: uppercase; }
+  .input-wrap {
+    display: flex; align-items: center; min-height: 50px; padding: 0 14px; gap: 8px;
+    border-radius: 14px; border: 1px solid var(--line);
+    background: var(--card); backdrop-filter: blur(18px);
+    transition: border-color .16s ease, box-shadow .16s ease;
+  }
+  .input-wrap:focus-within { border-color: rgba(61,139,253,.62); box-shadow: 0 0 0 4px rgba(61,139,253,.12); }
+  .input-wrap input { flex: 1; min-width: 0; border: 0; outline: 0; background: transparent; color: var(--ink); font: inherit; font-size: 15px; }
+  .input-wrap .suffix { color: var(--ink-soft); font-size: 12.5px; white-space: nowrap; }
+  .input-wrap .toggle { border: 0; background: transparent; color: var(--blue-bright); font: 700 11px/1 ui-sans-serif, system-ui, sans-serif; cursor: pointer; padding: 5px; }
+  .form-error { display: none; margin: 0; color: #ff8b8b; font-size: 13px; }
+  .form-error.visible { display: block; }
+  .success-card {
+    display: none; max-width: 620px; margin-top: 6px; padding: 22px;
+    border-radius: 20px; border: 1px solid rgba(43,213,118,.26);
+    background: linear-gradient(135deg, rgba(43,213,118,.10), rgba(40,196,217,.07));
+  }
+  .success-card.visible { display: block; }
+  .success-card h3 { margin: 0 0 5px; font-size: 20px; letter-spacing: -.02em; }
+  .success-card p { margin: 0 0 14px; color: var(--ink-soft); font-size: 13.5px; }
+  .credential { display: flex; justify-content: space-between; gap: 12px; padding: 9px 0; border-top: 1px solid var(--line); font-size: 13px; }
+  .credential span { color: var(--ink-soft); font-weight: 700; }
+  .credential code { color: var(--ink); font: 12.5px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; word-break: break-all; text-align: right; }
+  .success-card .actions { margin-top: 16px; }
   .card-stack { position: relative; min-height: 480px; display: grid; place-items: center; }
   .orb { position: absolute; border-radius: 50%; filter: blur(2px); }
   .orb.a { width: 210px; height: 210px; background: radial-gradient(circle at 30% 30%, rgba(40,196,217,.48), transparent 70%); top: 22px; right: 16px; }
@@ -204,6 +231,7 @@
     .secure { display: none; }
     .hero { padding-top: 10px; }
     .actions { flex-direction: column; }
+    .signup .row { grid-template-columns: 1fr; }
     .btn { width: 100%; }
     .platforms, .features { grid-template-columns: 1fr; }
     .platform { padding: 22px; }
@@ -243,11 +271,42 @@
             <span>Invitation for</span>
             <span class="host-chip" id="host-chip">—</span>
           </div>
-          <div class="actions">
-            <a class="btn primary" id="register-btn" href="#" aria-disabled="true">Create my account</a>
-            <a class="btn ghost" href="https://github.com/Smiley-McSmiles/Ward/releases" target="_blank" rel="noopener">Get Ward</a>
+          <form class="signup" id="register-form" method="post" action="/register">
+            <input type="hidden" name="token" id="token-field">
+            <div class="row">
+              <label class="field" for="username">Username
+                <span class="input-wrap">
+                  <input id="username" name="user" type="text" required minlength="1" maxlength="30"
+                         autocomplete="username" autocapitalize="none" spellcheck="false"
+                         placeholder="yourname">
+                  <span class="suffix" id="user-domain">@server</span>
+                </span>
+              </label>
+              <label class="field" for="password">Password
+                <span class="input-wrap">
+                  <input id="password" name="password" type="password" required minlength="8"
+                         autocomplete="new-password" placeholder="Choose a strong password">
+                  <button class="toggle" id="toggle-password" type="button" aria-label="Show password">Show</button>
+                </span>
+              </label>
+            </div>
+            <div class="actions">
+              <button class="btn primary" id="register-btn" type="submit">Create my account</button>
+              <a class="btn ghost" href="https://github.com/Smiley-McSmiles/Ward/releases" target="_blank" rel="noopener">Get Ward</a>
+            </div>
+            <p class="small-note">Your account is created on the server. You can sign in afterwards from Ward on any supported device.</p>
+            <p class="form-error" id="form-error" role="alert"></p>
+          </form>
+          <div class="success-card" id="success-card" role="status">
+            <h3>Your account is ready</h3>
+            <p>Use these credentials in Ward. Save them somewhere safe.</p>
+            <div class="credential"><span>Address</span><code id="success-jid"></code></div>
+            <div class="credential"><span>Password</span><code id="success-password"></code></div>
+            <div class="actions">
+              <a class="btn primary" href="https://github.com/Smiley-McSmiles/Ward/releases" target="_blank" rel="noopener">Download Ward</a>
+              <a class="btn ghost" href="https://github.com/Smiley-McSmiles/Ward-Android/releases" target="_blank" rel="noopener">Download for Android</a>
+            </div>
           </div>
-          <p class="small-note">Your account is created on the server. You can sign in afterwards from any supported device.</p>
           <div class="error" id="invite-error">This invite link is missing its token. Ask the person who invited you for a fresh link.</div>
           <div class="token-box" id="token-box">
             <textarea class="token" id="token-text" readonly aria-label="Invite token"></textarea>
@@ -332,24 +391,99 @@
     var el = document.getElementById(id);
     if (el) el.textContent = label;
   });
+  var form = document.getElementById("register-form");
   var register = document.getElementById("register-btn");
+  var username = document.getElementById("username");
+  var password = document.getElementById("password");
+  var tokenField = document.getElementById("token-field");
+  var formError = document.getElementById("form-error");
+  var successCard = document.getElementById("success-card");
+  var successJid = document.getElementById("success-jid");
+  var successPassword = document.getElementById("success-password");
+  var toggle = document.getElementById("toggle-password");
   var xmpp = document.getElementById("xmpp-link");
   var error = document.getElementById("invite-error");
   var tokenBox = document.getElementById("token-box");
   var tokenText = document.getElementById("token-text");
+  var userDomain = document.getElementById("user-domain");
+  if (userDomain) userDomain.textContent = "@" + label;
   if (!token) {
     error.classList.add("visible");
-    register.setAttribute("aria-disabled", "true");
-    register.removeAttribute("href");
+    register.disabled = true;
+    if (form) form.querySelectorAll("input").forEach(function (input) { input.disabled = true; });
     xmpp.setAttribute("href", "xmpp:" + host);
     return;
   }
   var uri = "xmpp:" + host + "?register;preauth=" + encodeURIComponent(token);
-  register.href = "/register?t=" + encodeURIComponent(token);
-  register.removeAttribute("aria-disabled");
+  tokenField.value = token;
   xmpp.href = uri;
   tokenText.value = uri;
   tokenBox.classList.add("visible");
+
+  function showError(message) {
+    formError.textContent = message;
+    formError.classList.add("visible");
+  }
+  function clearError() {
+    formError.textContent = "";
+    formError.classList.remove("visible");
+  }
+  if (toggle) {
+    toggle.addEventListener("click", function () {
+      var show = password.type === "password";
+      password.type = show ? "text" : "password";
+      toggle.textContent = show ? "Hide" : "Show";
+      toggle.setAttribute("aria-label", show ? "Hide password" : "Show password");
+    });
+  }
+  form.addEventListener("submit", function (event) {
+    event.preventDefault();
+    clearError();
+    var user = username.value.trim();
+    var pass = password.value;
+    if (!user || !pass) {
+      showError("Choose a username and password first.");
+      return;
+    }
+    var body = new URLSearchParams();
+    body.set("user", user);
+    body.set("password", pass);
+    body.set("token", token);
+    register.disabled = true;
+    register.textContent = "Creating account…";
+    fetch("/register", {
+      method: "POST",
+      credentials: "same-origin",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: body.toString()
+    }).then(function (response) {
+      return response.text();
+    }).then(function (html) {
+      if (html.indexOf("Congratulations!") !== -1 ||
+          html.indexOf("You have created an account") !== -1) {
+        successJid.textContent = user + "@" + host;
+        successPassword.textContent = pass;
+        form.style.display = "none";
+        successCard.classList.add("visible");
+        tokenBox.classList.remove("visible");
+      } else {
+        var message = "Could not create the account. Check the username and password rules.";
+        try {
+          var doc = new DOMParser().parseFromString(html, "text/html");
+          var alert = doc.querySelector(".alert");
+          var title = doc.querySelector(".card-title");
+          if (alert && alert.textContent.trim()) message = alert.textContent.trim();
+          else if (title && title.textContent.trim()) message = title.textContent.trim();
+        } catch (_) {}
+        showError(message);
+      }
+    }).catch(function () {
+      showError("Could not reach the server. Please try again.");
+    }).then(function () {
+      register.disabled = false;
+      register.textContent = "Create my account";
+    });
+  });
 })();
 </script>
 </body>
