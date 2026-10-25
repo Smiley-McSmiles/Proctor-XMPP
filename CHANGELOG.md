@@ -6,6 +6,10 @@
   `invites_register_web`, `register_apps` and `password_policy`, proxy
   `/invites_page` and `/register`, and set `http_external_url` for correct
   HTTPS invite links.
+- Serve a custom Ward invitation landing page recommending Ward for Linux/BSD
+  and Ward for Android at `/ward-invite`.
+- Reuse a pre-existing certificate from `/etc/letsencrypt/live/` instead of
+  asking certbot to reissue it when setup is run again.
 
 ## 1.0.2 — 2026-10-25
 

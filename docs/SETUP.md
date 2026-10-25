@@ -112,6 +112,13 @@ sudo ufw allow 5280,5281/tcp
 Certbot failure is reported but does not roll back the Prosody installation. Fix
 DNS/ports and re-run `proctor setup`, or obtain certificates separately.
 
+Proctor scans `/etc/letsencrypt/live/` before contacting certbot. A pre-existing
+certificate covering the configured domains (or at least the primary domain) is
+reused as-is, even when certbot was selected during setup. This avoids
+re-registering certificates when reinstalling Proctor or re-running setup. If
+the certificate lacks a newer service hostname, Proctor warns but does not
+request a replacement automatically.
+
 ## What gets installed
 
 | Family | Prosody | nginx | Apache | certbot |

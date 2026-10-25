@@ -42,3 +42,6 @@ proctor = "proctor.cli:main"
 
 [tool.setuptools]
 packages = ["proctor"]
+
+[tool.setuptools.package-data]
+proctor = ["data/invite/*"]

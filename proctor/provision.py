@@ -30,6 +30,8 @@ CERTBOT_RENEWAL = os.path.join(CERTBOT_ROOT, "renewal")
 WEBROOT = "/var/www/html"
 COMMUNITY_MODULES_ROOT = "/usr/local/lib/prosody-modules"
 COMMUNITY_MODULES_ENABLED = "/usr/local/lib/prosody-modules-enabled"
+INVITE_PAGE_DIR = "/usr/local/share/proctor/invite"
+INVITE_PAGE_PATH = os.path.join(INVITE_PAGE_DIR, "index.html")
 PROXY_PATHS = ("/http-bind", "/xmpp-websocket", "/upload", "/invites_page",
                "/register", "/.well-known/host-meta")
 
@@ -1176,6 +1178,35 @@ def _certificate_name_matches(pattern, domain):
     return domain.endswith(suffix) and "." not in domain[:-len(suffix)]
 
 
+def find_existing_certificate(domains):
+    """Return an existing Let's Encrypt certificate name suitable for domains.
+
+    Prefer a certificate whose SANs cover all requested names, then fall back to
+    one covering the primary domain so re-running setup can reuse a working
+    certificate without asking certbot to issue another one.
+    """
+    if not domains or not os.path.isdir(CERTBOT_LIVE):
+        return None
+    candidates = []
+    for path in sorted(glob.glob(os.path.join(CERTBOT_LIVE, "*"))):
+        name = os.path.basename(path)
+        if not has_certificate(name):
+            continue
+        covered = certificate_domains(name)
+        if not covered:
+            continue
+        candidates.append((name, covered))
+    for name, covered in candidates:
+        if all(any(_certificate_name_matches(item, domain) for item in covered)
+               for domain in domains):
+            return name
+    primary = domains[0]
+    for name, covered in candidates:
+        if any(_certificate_name_matches(item, primary) for item in covered):
+            return name
+    return None
+
+
 def missing_certificate_domains(cert_name, domains):
     """Domains requested for the vhost but absent from an existing cert."""
     covered = certificate_domains(cert_name)
@@ -1293,7 +1324,8 @@ def _prosody_module_choice(preferred, *alternatives):
 
 
 def prosody_config_text(layout, domains, admin, tls, cert_name, storage="internal_hashed",
-                        proxy=True, http_port=5280, http_interface="*", turn=None):
+                        proxy=True, http_port=5280, http_interface="*", turn=None,
+                        web_invites=False):
     if not domains:
         raise ConfigError("at least one XMPP domain is required")
     admin = admin or ("admin@" + domains[0])
@@ -1365,6 +1397,14 @@ def prosody_config_text(layout, domains, admin, tls, cert_name, storage="interna
     if proxy:
         lines.append("http_external_url = %s" % _lua_string(
             ("https://" if tls else "http://") + domains[0]))
+    if web_invites:
+        scheme = "https" if tls else "http"
+        lines.extend([
+            "invites_page_external = true",
+            "invites_page = %s" % _lua_string(
+                scheme + "://" + domains[0] + "/ward-invite?{invite.token}"),
+            "site_name = %s" % _lua_string(domains[0]),
+        ])
     lines.extend([
         "http_ports = { %d }" % int(http_port),
         "http_interfaces = { %s }" % _lua_string(
@@ -1477,6 +1517,16 @@ def _proxy_nginx(backend_host, backend_port, proxy_paths):
     return "\n".join(blocks)
 
 
+def _invite_nginx_locations():
+    return (
+        "    location = /ward-invite {\n"
+        "        root %s;\n"
+        "        try_files /index.html =404;\n"
+        "        default_type text/html;\n"
+        "    }" % INVITE_PAGE_DIR
+    )
+
+
 def nginx_config_text(domains, tls, cert_name, proxy, proxy_paths,
                       backend_host="127.0.0.1", backend_port=5280):
     names = " ".join(domains)
@@ -1487,6 +1537,7 @@ def nginx_config_text(domains, tls, cert_name, proxy, proxy_paths,
         "        default_type text/plain;\n"
         "    }"
     )
+    invite = _invite_nginx_locations()
     proxy_block = _proxy_nginx(backend_host, backend_port, proxy_paths) if proxy else ""
     fallback = "    location / {\n        return 404;\n    }"
     head = (
@@ -1505,7 +1556,8 @@ def nginx_config_text(domains, tls, cert_name, proxy, proxy_paths,
             "%s\n"
             "%s\n"
             "%s\n"
-            "}\n" % (names, acme, proxy_block, fallback)
+            "%s\n"
+            "}\n" % (names, acme, invite, proxy_block, fallback)
         ).replace("\n\n\n", "\n\n")
     http = (
         "server {\n"
@@ -1531,7 +1583,8 @@ def nginx_config_text(domains, tls, cert_name, proxy, proxy_paths,
         "%s\n"
         "%s\n"
         "%s\n"
-        "}\n" % (names, root, root, acme, proxy_block, fallback)
+        "%s\n"
+        "}\n" % (names, root, root, acme, invite, proxy_block, fallback)
     )
     return head + http + "\n" + https
 
@@ -1556,6 +1609,12 @@ def apache_config_text(domains, tls, cert_name, proxy, proxy_paths,
     aliases = " ".join(domains[1:])
     root = certificate_root(cert_name) if cert_name else ""
     proxy_block = _proxy_apache(backend_host, backend_port, proxy_paths) if proxy else ""
+    invite = (
+        "    Alias /ward-invite %s/index.html\n"
+        "    <Directory %s>\n"
+        "        Require all granted\n"
+        "    </Directory>" % (INVITE_PAGE_DIR, INVITE_PAGE_DIR)
+    )
     http = (
         "# Managed by proctor. Manual changes may be overwritten.\n"
         "<VirtualHost *:80>\n"
@@ -1568,9 +1627,11 @@ def apache_config_text(domains, tls, cert_name, proxy, proxy_paths,
         "    Alias /.well-known/acme-challenge/ /var/www/html/.well-known/acme-challenge/\n"
         "%s\n"
         "%s\n"
+        "%s\n"
         "</VirtualHost>\n" % (
             names,
             ("    ServerAlias %s\n" % aliases) if aliases else "",
+            invite,
             proxy_block,
             ("    RewriteEngine On\n"
              "    RewriteCond %%{REQUEST_URI} !^/\\.well-known/acme-challenge/\n"
@@ -1595,11 +1656,12 @@ def apache_config_text(domains, tls, cert_name, proxy, proxy_paths,
         "    </Directory>\n"
         "    Alias /.well-known/acme-challenge/ /var/www/html/.well-known/acme-challenge/\n"
         "%s\n"
+        "%s\n"
         "</VirtualHost>\n"
         "</IfModule>\n" % (
             names,
             ("    ServerAlias %s\n" % aliases) if aliases else "",
-            root, root, proxy_block,
+            root, root, invite, proxy_block,
         )
     )
     return http + "\n" + https
@@ -1616,6 +1678,30 @@ def web_config_text(info, domains, tls, cert_name, proxy, proxy_paths,
         return apache_config_text(domains, tls, cert_name, proxy, proxy_paths,
                                   backend_host, backend_port)
     raise ConfigError("unsupported web server: %s" % info.kind)
+
+
+def install_invite_page(reporter=None, dry_run=False):
+    """Install the self-contained Ward invitation landing page."""
+    source = os.path.join(os.path.dirname(__file__), "data", "invite", "index.html")
+    if not os.path.isfile(source):
+        if reporter is not None:
+            reporter.warn("invite landing page template is missing: %s" % source)
+        return None
+    if dry_run:
+        if reporter is not None:
+            reporter.info("Would install %s" % INVITE_PAGE_PATH)
+        return INVITE_PAGE_PATH
+    with open(source, "rb") as handle:
+        data = handle.read()
+    try:
+        ensure_dir(INVITE_PAGE_DIR, mode=0o755)
+        atomic_write(INVITE_PAGE_PATH, data, mode=0o644)
+        _relabel([INVITE_PAGE_DIR])
+    except OSError as exc:
+        if reporter is not None:
+            reporter.warn("could not install the invite landing page: %s" % exc)
+        return None
+    return INVITE_PAGE_PATH
 
 
 def web_config_path(config, info, filename="proctor-xmpp.conf"):
@@ -1795,6 +1881,8 @@ def finalize_restore(config, manifest, target, prepared, options, reporter, prom
     backend_host = prepared.get("backend_host") or "127.0.0.1"
     backend_port = prepared.get("backend_port") or 5280
     web_names = web_domains(domains)
+    if web is not None:
+        install_invite_page(reporter)
     result = {
         "kind": web.kind if web is not None else None,
         "domains": domains,
@@ -1937,11 +2025,13 @@ def setup_server(config, options, reporter):
     web_names = web_domains(domains)
     if options.dry_run:
         layout = layout_for_host(config)
-        tls = has_certificate(_safe_cert_name(domains[0]))
+        cert_name = find_existing_certificate(web_names) or _safe_cert_name(domains[0])
+        tls = has_certificate(cert_name)
         config_text = prosody_config_text(
-            layout, domains, admin, tls, domains[0], storage=storage,
+            layout, domains, admin, tls, cert_name, storage=storage,
             proxy=proxy, http_port=options.http_port,
             http_interface=options.http_interface,
+            web_invites=bool(kind),
         )
         web_preview = None
         if kind:
@@ -1989,14 +2079,23 @@ def setup_server(config, options, reporter):
         except OSError as exc:
             reporter.warn("could not back up existing config: %s" % exc)
     _prepare_prosody_dirs(layout, reporter)
+    install_invite_page(reporter)
     controller = _controller_for(config, layout.service_name)
     if controller.available and controller.is_active():
         reporter.step("Stopping %s before writing configuration" % layout.service_name)
         if not controller.stop():
             raise ProctorError("%s did not stop; refusing to overwrite its config"
                                % layout.service_name)
-    cert_name = _safe_cert_name(domains[0])
+    existing_cert = find_existing_certificate(web_names)
+    cert_name = existing_cert or _safe_cert_name(domains[0])
     tls = has_certificate(cert_name)
+    if existing_cert:
+        missing_names = missing_certificate_domains(cert_name, web_names)
+        if missing_names:
+            reporter.warn(
+                "using existing certificate %s, which does not cover %s; "
+                "certbot will not be asked to reissue it"
+                % (cert_name, ", ".join(missing_names)))
     if web is not None:
         http_text = web_config_text(web, web_names, False, cert_name, proxy,
                                     list(PROXY_PATHS), "127.0.0.1", options.http_port)
@@ -2009,7 +2108,7 @@ def setup_server(config, options, reporter):
                              web=web is not None or certbot_wanted),
         options, reporter, prompter,
     )
-    if certbot_wanted:
+    if certbot_wanted and not tls:
         obtain_certificate(web, web_names, email, cert_name, reporter,
                            backend="webroot" if web is not None else "standalone")
         # Keep using a previously valid certificate if expansion fails.
@@ -2029,6 +2128,7 @@ def setup_server(config, options, reporter):
         layout, domains, admin, tls, cert_name, storage=storage,
         proxy=bool(proxy), http_port=options.http_port,
         http_interface=options.http_interface,
+        web_invites=web is not None,
     )
     if turn_wanted:
         secret = getattr(options, "turn_secret", None)
@@ -2043,6 +2143,7 @@ def setup_server(config, options, reporter):
             http_interface=options.http_interface,
             turn={"host": turn_realm, "secret": secret, "port": 3478,
                   "tls_port": 5349 if tls else None},
+            web_invites=web is not None,
         )
     atomic_write(layout.config_file, config_text.encode("utf-8"), mode=0o644)
     _chown_path(layout.config_file, 0, 0)
