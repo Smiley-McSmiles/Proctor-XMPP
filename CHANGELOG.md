@@ -1,17 +1,13 @@
 # Changelog
 
-## Unreleased
+## 1.0.2 — 2026-10-25
 
 - Write the coturn/TURN nginx or Apache vhost to `proctor-turn.conf` instead of
   overwriting `proctor-xmpp.conf`, which removed the BOSH, WebSocket and upload
   proxy locations.
-- Install Mercurial during a fresh setup and automatically fetch Prosody's
-  community modules, linking any enabled module missing from the built-in
-  module path into `/usr/local/lib/prosody-modules-enabled`.
-- 91-case unittest suite.
-
-## 1.0.2 — 2026-10-25
-
+- Install Mercurial during setup and automatically fetch Prosody's community
+  modules, linking any enabled module missing from the built-in module path
+  into `/usr/local/lib/prosody-modules-enabled`.
 - Generate Prosody configuration with current core module names
   (`saslauth`, `http_file_share`) and options, falling back to the legacy
   `sasl`/`http_upload` names when only those are installed. This fixes config
@@ -53,7 +49,7 @@
   `turnserver.conf` contained `no-tls`.
 - Fix the TURN allocation probe's STUN message length, which made coturn drop
   the request and produced a false `no TURN response` warning.
-- 88-case unittest suite.
+- 91-case unittest suite.
 - Drop the macOS CI job; Linux and FreeBSD cover the supported server paths.
 
 ## 1.0.1 — 2026-10-18
