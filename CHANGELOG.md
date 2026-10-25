@@ -5,7 +5,10 @@
 - Write the coturn/TURN nginx or Apache vhost to `proctor-turn.conf` instead of
   overwriting `proctor-xmpp.conf`, which removed the BOSH, WebSocket and upload
   proxy locations.
-- 89-case unittest suite.
+- Install Mercurial during a fresh setup and automatically fetch Prosody's
+  community modules, linking any enabled module missing from the built-in
+  module path into `/usr/local/lib/prosody-modules-enabled`.
+- 91-case unittest suite.
 
 ## 1.0.2 — 2026-10-25
 

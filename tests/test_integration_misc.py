@@ -149,6 +149,40 @@ class ProvisioningTests(unittest.TestCase):
                          ["example.com", "upload.example.com",
                           "conference.example.com"])
 
+    def test_config_module_names_include_components(self):
+        from proctor.provision import _config_module_names
+        names = _config_module_names(
+            'modules_enabled = { "roster"; "mam"; }\n'
+            'Component "conference.example.com" "muc"\n'
+            '    modules_enabled = { "mam"; }\n'
+        )
+        self.assertEqual(names, {"roster", "mam", "muc"})
+
+    def test_missing_community_module_is_linked(self):
+        from proctor import provision
+        root = tempfile.mkdtemp()
+        os.makedirs(os.path.join(root, ".hg"))
+        os.makedirs(os.path.join(root, "mod_foo"))
+        open(os.path.join(root, "mod_foo", "mod_foo.lua"), "w").close()
+        enabled = os.path.join(root, "enabled")
+        reporter = SimpleNamespace(step=lambda *_a, **_k: None,
+                                   info=lambda *_a, **_k: None,
+                                   warn=lambda *_a, **_k: None)
+        options = SimpleNamespace(dry_run=False, install_missing=True)
+        config = SimpleNamespace(host=SimpleNamespace())
+        with mock.patch.object(provision, "COMMUNITY_MODULES_ROOT", root), \
+                mock.patch.object(provision, "COMMUNITY_MODULES_ENABLED", enabled), \
+                mock.patch.object(provision, "_available_prosody_modules",
+                                  return_value=set()), \
+                mock.patch.object(provision, "ensure_mercurial",
+                                  return_value={"installed": True}), \
+                mock.patch.object(provision, "run"):
+            result = provision.ensure_community_modules(
+                config, options, reporter, SimpleNamespace(),
+                'modules_enabled = { "foo"; }\n')
+        self.assertEqual(result["linked"], ["foo"])
+        self.assertTrue(os.path.islink(os.path.join(enabled, "mod_foo")))
+
     def test_prosody_config_uses_modern_module_names(self):
         from proctor import provision
         layout = self._layout()
@@ -160,6 +194,8 @@ class ProvisioningTests(unittest.TestCase):
             )
         self.assertIn('"saslauth"', text)
         self.assertNotIn('"sasl"', text)
+        self.assertIn('plugin_paths = { "/usr/local/lib/prosody-modules-enabled" }',
+                      text)
         for module in ("adhoc", "admin_adhoc", "invites", "invites_adhoc",
                        "invites_register"):
             self.assertIn('"%s"' % module, text)
