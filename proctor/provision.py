@@ -1207,8 +1207,12 @@ def prosody_config_text(layout, domains, admin, tls, cert_name, storage="interna
         layout.sql = {"engine": "sqlite", "path": database, "database": database,
                       "driver": "SQLite3"}
     else:
-        lines.append("storage = %s" % _lua_string(storage or "internal_hashed"))
-        layout.storage = storage or "internal_hashed"
+        # "internal_hashed" is an authentication provider. The filesystem
+        # storage driver is called "internal" (mod_storage_internal).
+        configured_storage = "internal" if storage in (
+            None, "", "internal", "internal_hashed") else storage
+        lines.append("storage = %s" % _lua_string(configured_storage))
+        layout.storage = configured_storage
     cert_root = certificate_root(cert_name) if cert_name else None
     lines.extend([
         "",

@@ -116,6 +116,18 @@ class ProvisioningTests(unittest.TestCase):
         self.assertIn("c2s_require_encryption = false", text)
         self.assertIn("admin@example.com", text)
 
+    def test_prosody_internal_storage_uses_internal_driver(self):
+        from proctor.provision import prosody_config_text
+        layout = self._layout()
+        text = prosody_config_text(
+            layout, ["example.com"], "admin@example.com", False,
+            "example.com", storage="internal_hashed", proxy=True,
+        )
+        self.assertIn('authentication = "internal_hashed"', text)
+        self.assertIn('storage = "internal"', text)
+        self.assertNotIn('storage = "internal_hashed"', text)
+        self.assertEqual(layout.storage, "internal")
+
     def test_missing_certificate_domains_handles_wildcards(self):
         from proctor import provision
         with mock.patch.object(provision, "certificate_domains",
