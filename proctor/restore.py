@@ -608,7 +608,8 @@ def _restore_turn(config, manifest, prepared, options, reporter, prompter, web):
     source_turn = (manifest.get("source") or {}).get("turn") or {}
     turn_options = copy.copy(options)
     turn_options.turn = "yes"
-    turn_options.turn_secret = prepared.get("turn_secret") or turn_options.turn_secret
+    turn_options.turn_secret = prepared.get("turn_secret") or getattr(
+        turn_options, "turn_secret", None)
     turn = detect_coturn()
     if turn.exists and not getattr(turn_options, "force", False) \
             and not (options.assume_yes and options.install_missing):

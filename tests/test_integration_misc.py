@@ -9,6 +9,7 @@ import sys
 import tempfile
 import unittest
 from types import SimpleNamespace
+from unittest import mock
 
 from proctor.config import load_config
 from proctor.errors import ConfigError
@@ -114,6 +115,39 @@ class ProvisioningTests(unittest.TestCase):
         self.assertIn("http_interfaces = { \"127.0.0.1\" }", text)
         self.assertIn("c2s_require_encryption = false", text)
         self.assertIn("admin@example.com", text)
+
+    def test_prosody_config_uses_modern_module_names(self):
+        from proctor import provision
+        layout = self._layout()
+        with mock.patch.object(provision, "_available_prosody_modules",
+                               return_value=set()):
+            text = provision.prosody_config_text(
+                layout, ["example.com"], "admin@example.com", False,
+                "example.com", proxy=True,
+            )
+        self.assertIn('"saslauth"', text)
+        self.assertNotIn('"sasl"', text)
+        self.assertIn('"http_file_share"', text)
+        self.assertIn('http_paths = { file_share = "/upload" }', text)
+        self.assertIn("http_file_share_size_limit = 10485760", text)
+        self.assertIn("c2s_direct_tls_ports = { }", text)
+        self.assertNotIn("legacy_ssl_ports", text)
+        self.assertNotIn("cross_domain_bosh", text)
+        self.assertNotIn("cross_domain_websocket", text)
+
+    def test_prosody_config_falls_back_to_legacy_modules(self):
+        from proctor import provision
+        layout = self._layout()
+        with mock.patch.object(provision, "_available_prosody_modules",
+                               return_value={"sasl", "http_upload"}):
+            text = provision.prosody_config_text(
+                layout, ["example.com"], "admin@example.com", False,
+                "example.com", proxy=True,
+            )
+        self.assertIn('"sasl"', text)
+        self.assertIn('"http_upload"', text)
+        self.assertIn("http_upload_file_size_limit = 10485760", text)
+        self.assertNotIn("http_file_share", text)
 
     def test_prosody_bosh_tls_config_matches_proxy_mode(self):
         from proctor.provision import prosody_config_text

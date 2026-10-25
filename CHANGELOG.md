@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+- Generate Prosody configuration with current core module names
+  (`saslauth`, `http_file_share`) and options, falling back to the legacy
+  `sasl`/`http_upload` names when only those are installed. This fixes config
+  checks on Prosody 0.12+/13 and removes deprecated `cross_domain_*` and
+  `legacy_ssl_ports` options.
+- Open firewall ports before certbot runs so HTTP-01 validation is not blocked
+  by an active UFW/firewalld setup.
 - coturn/`mod_turn_external` support: `proctor setup --turn`, `proctor turn
   --setup`, TURN vhost on nginx/Apache with ACME webroot, certificate ACLs for
   the coturn user, firewalld service (including the UDP relay range), UFW rules
@@ -10,7 +17,8 @@
   relay range, certificates, live STUN/TURN realm+nonce probe, realm mismatch,
   firewall and SELinux state.
 - Backups record TURN settings; restore/migrate recreate coturn.
-- 78-case unittest suite.
+- 80-case unittest suite.
+- Drop the macOS CI job; Linux and FreeBSD cover the supported server paths.
 
 ## 1.0.1 — 2026-10-18
 
