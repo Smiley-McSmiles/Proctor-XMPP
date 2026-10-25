@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 1.0.2 — 2026-10-25
 
 - Generate Prosody configuration with current core module names
   (`saslauth`, `http_file_share`) and options, falling back to the legacy

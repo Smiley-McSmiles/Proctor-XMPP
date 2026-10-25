@@ -20,7 +20,7 @@ body:
     attributes:
       label: Proctor version
       description: Output of `proctor version`
-      placeholder: proctor 1.0.1 (Python 3.12.x)
+      placeholder: proctor 1.0.2 (Python 3.12.x)
     validations:
       required: true
   - type: input
