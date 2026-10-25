@@ -24,7 +24,8 @@ It then asks before changing the host:
 3. **Web server** — nginx (recommended), Apache, or none. An already-installed
    web server is offered first.
 4. **Proxy HTTP endpoints** — BOSH (`/http-bind`), WebSocket
-   (`/xmpp-websocket`), uploads (`/upload`) and host-meta.
+   (`/xmpp-websocket`), uploads (`/upload`), web invitations
+   (`/invites_page`, `/register`) and host-meta.
 5. **certbot** — obtain a Let's Encrypt certificate using the HTTP-01 webroot
    flow, plus the account email.
 6. **Storage** — internal hashed storage (recommended) or SQLite.
