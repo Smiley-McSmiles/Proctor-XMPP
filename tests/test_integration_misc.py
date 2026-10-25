@@ -197,8 +197,11 @@ class ProvisioningTests(unittest.TestCase):
         self.assertIn('plugin_paths = { "/usr/local/lib/prosody-modules-enabled" }',
                       text)
         for module in ("adhoc", "admin_adhoc", "invites", "invites_adhoc",
-                       "invites_register"):
+                       "invites_register", "invites_page",
+                       "invites_register_web", "register_apps",
+                       "password_policy"):
             self.assertIn('"%s"' % module, text)
+        self.assertIn('http_external_url = "http://example.com"', text)
         for module in ("mam", "pep", "bookmarks", "csi_simple", "cloud_notify"):
             self.assertIn('"%s"' % module, text)
         self.assertIn('Component "conference.example.com" "muc"', text)

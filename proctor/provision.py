@@ -30,7 +30,8 @@ CERTBOT_RENEWAL = os.path.join(CERTBOT_ROOT, "renewal")
 WEBROOT = "/var/www/html"
 COMMUNITY_MODULES_ROOT = "/usr/local/lib/prosody-modules"
 COMMUNITY_MODULES_ENABLED = "/usr/local/lib/prosody-modules-enabled"
-PROXY_PATHS = ("/http-bind", "/xmpp-websocket", "/upload", "/.well-known/host-meta")
+PROXY_PATHS = ("/http-bind", "/xmpp-websocket", "/upload", "/invites_page",
+               "/register", "/.well-known/host-meta")
 
 
 class Prompter(object):
@@ -1310,6 +1311,12 @@ def prosody_config_text(layout, domains, admin, tls, cert_name, storage="interna
         selected = _prosody_module_choice(admin_module)
         if selected:
             modules.append(selected)
+    # Web invitation pages are community modules and are linked automatically
+    # by ensure_community_modules() when they are not part of Prosody.
+    modules.extend([
+        "invites_page", "invites_register_web", "register_apps",
+        "password_policy",
+    ])
     modules.extend([
         "muc", "vcard", "private", "blocklist", "smacks",
         "mam", "pep", "bookmarks", "csi_simple", "cloud_notify",
@@ -1355,6 +1362,9 @@ def prosody_config_text(layout, domains, admin, tls, cert_name, storage="interna
         "consider_bosh_secure = true",
         "consider_websocket_secure = true",
     ])
+    if proxy:
+        lines.append("http_external_url = %s" % _lua_string(
+            ("https://" if tls else "http://") + domains[0]))
     lines.extend([
         "http_ports = { %d }" % int(http_port),
         "http_interfaces = { %s }" % _lua_string(

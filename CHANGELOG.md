@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+
+- Enable web-based account invitations with `invites_page`,
+  `invites_register_web`, `register_apps` and `password_policy`, proxy
+  `/invites_page` and `/register`, and set `http_external_url` for correct
+  HTTPS invite links.
+
 ## 1.0.2 — 2026-10-25
 
 - Write the coturn/TURN nginx or Apache vhost to `proctor-turn.conf` instead of
