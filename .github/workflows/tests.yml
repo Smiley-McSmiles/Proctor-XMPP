@@ -12,7 +12,8 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - os: ubuntu-latest
+          # Python 3.8 is not available on the Ubuntu 26 runner image yet.
+          - os: ubuntu-22.04
             python: "3.8"
           - os: ubuntu-latest
             python: "3.12"
