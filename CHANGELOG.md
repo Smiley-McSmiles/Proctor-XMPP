@@ -39,7 +39,9 @@
   `mod_mam`) so `doctor` does not report them as missing.
 - Re-enable coturn TLS whenever setup supplies a certificate, even if the old
   `turnserver.conf` contained `no-tls`.
-- 87-case unittest suite.
+- Fix the TURN allocation probe's STUN message length, which made coturn drop
+  the request and produced a false `no TURN response` warning.
+- 88-case unittest suite.
 - Drop the macOS CI job; Linux and FreeBSD cover the supported server paths.
 
 ## 1.0.1 — 2026-10-18

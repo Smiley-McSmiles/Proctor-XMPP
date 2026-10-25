@@ -858,9 +858,10 @@ def check_turn_auth(host, port, realm=None, timeout=3):
 
 def _socket_stun_allocate(host, port, timeout=3):
     transaction = os.urandom(12)
-    header = struct.pack(">HHI12s", 0x0003, 0x0000, 0x2112A442, transaction)
     # REQUESTED-TRANSPORT = UDP (0x0019)
     attribute = struct.pack(">HHB", 0x0019, 4, 17) + b"\x00\x00\x00"
+    header = struct.pack(">HHI12s", 0x0003, len(attribute), 0x2112A442,
+                         transaction)
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     sock.settimeout(timeout)
     try:

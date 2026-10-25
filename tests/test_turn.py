@@ -332,6 +332,31 @@ class TurnCheckerTests(unittest.TestCase):
         self.assertIn("does not match", checks["prosody-turn"][1])
         self.assertEqual(checks["coturn-firewall"][0], "fail")
 
+    def test_allocate_probe_sets_correct_message_length(self):
+        import struct
+        sent = {}
+
+        class FakeSocket:
+            def settimeout(self, _timeout):
+                pass
+
+            def sendto(self, data, _address):
+                sent["data"] = data
+
+            def recvfrom(self, _size):
+                return struct.pack(">HHI12s", 0x0113, 0, 0x2112A442,
+                                   b"x" * 12), ("127.0.0.1", 3478)
+
+            def close(self):
+                pass
+
+        with patch("proctor.turn.socket.socket", return_value=FakeSocket()):
+            from proctor.turn import _socket_stun_allocate
+            _socket_stun_allocate("127.0.0.1", 3478)
+        length = struct.unpack(">H", sent["data"][2:4])[0]
+        self.assertEqual(length, len(sent["data"]) - 20)
+        self.assertEqual(length, 8)
+
     def test_turn_auth_parsing_reports_realm_and_nonce(self):
         # Build a minimal 401 with REALM and NONCE attributes.
         import struct
