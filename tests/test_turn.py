@@ -253,6 +253,7 @@ class TurnFirewallSelinuxTests(unittest.TestCase):
         turn.exists = True
         turn.cert = None
         turn.pkey = None
+        turn.no_tls = True
         text = apply_turnserver_config(
             turn, "secret", "turn.example.com",
             cert="/etc/letsencrypt/live/example.com/fullchain.pem",
