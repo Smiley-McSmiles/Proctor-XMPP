@@ -1253,9 +1253,10 @@ def prosody_config_text(layout, domains, admin, tls, cert_name, storage="interna
                 lines.append("    http_file_share_size_limit = 10485760")
             elif upload_module == "http_upload":
                 lines.append("    http_upload_file_size_limit = 10485760")
-            if proxy and tls:
+            if proxy:
+                scheme = "https" if tls else "http"
                 lines.append("    http_external_url = %s" % _lua_string(
-                    "https://" + upload_host))
+                    scheme + "://" + upload_host))
     lines.append("")
     return "\n".join(lines)
 
