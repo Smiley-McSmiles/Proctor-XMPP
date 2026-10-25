@@ -1071,6 +1071,23 @@ def _lua_string(value):
     return json.dumps(str(value), ensure_ascii=True)
 
 
+def service_hostnames(domains):
+    """Service hostnames that accompany the primary XMPP domain."""
+    if not domains:
+        return []
+    base = domains[0]
+    return ["conference." + base, "upload." + base]
+
+
+def web_domains(domains):
+    """Base domains plus the service hostnames used by HTTP/TLS."""
+    result = list(domains)
+    for host in service_hostnames(domains):
+        if host not in result:
+            result.append(host)
+    return result
+
+
 def normalize_turn(value):
     """Validate/normalise the fields of the ``turn`` dict for config text."""
     if not value:
@@ -1135,8 +1152,6 @@ def prosody_config_text(layout, domains, admin, tls, cert_name, storage="interna
         "tls", "dialback", "disco", "carbons", "ping", "version", "time",
         "http", "bosh", "websocket",
     ])
-    if upload_module:
-        modules.append(upload_module)
     modules.extend(["muc", "vcard", "private", "blocklist", "smacks"])
     turn = normalize_turn(turn)
     if turn:
@@ -1174,13 +1189,6 @@ def prosody_config_text(layout, domains, admin, tls, cert_name, storage="interna
         "consider_bosh_secure = true",
         "consider_websocket_secure = true",
     ])
-    if upload_module == "http_file_share":
-        lines.extend([
-            "http_paths = { file_share = \"/upload\" }",
-            "http_file_share_size_limit = 10485760",
-        ])
-    elif upload_module == "http_upload":
-        lines.append("http_upload_file_size_limit = 10485760")
     lines.extend([
         "http_ports = { %d }" % int(http_port),
         "http_interfaces = { %s }" % _lua_string(
@@ -1233,7 +1241,21 @@ def prosody_config_text(layout, domains, admin, tls, cert_name, storage="interna
             ])
         lines.append("")
     if domains:
-        lines.append("Component %s \"muc\"" % _lua_string("conference." + domains[0]))
+        base = domains[0]
+        lines.append("Component %s \"muc\"" % _lua_string("conference." + base))
+        if upload_module:
+            upload_host = "upload." + base
+            lines.append("")
+            lines.append("Component %s %s" % (
+                _lua_string(upload_host), _lua_string(upload_module)))
+            if upload_module == "http_file_share":
+                lines.append("    http_paths = { file_share = \"/upload\" }")
+                lines.append("    http_file_share_size_limit = 10485760")
+            elif upload_module == "http_upload":
+                lines.append("    http_upload_file_size_limit = 10485760")
+            if proxy and tls:
+                lines.append("    http_external_url = %s" % _lua_string(
+                    "https://" + upload_host))
     lines.append("")
     return "\n".join(lines)
 
@@ -1586,6 +1608,7 @@ def finalize_restore(config, manifest, target, prepared, options, reporter, prom
     proxy_paths = prepared.get("proxy_paths") or list(PROXY_PATHS)
     backend_host = prepared.get("backend_host") or "127.0.0.1"
     backend_port = prepared.get("backend_port") or 5280
+    web_names = web_domains(domains)
     result = {
         "kind": web.kind if web is not None else None,
         "domains": domains,
@@ -1614,10 +1637,10 @@ def finalize_restore(config, manifest, target, prepared, options, reporter, prom
         if email:
             result["certificate_requested"] = True
             if web is not None:
-                http_text = web_config_text(web, domains, False, cert_name, proxy,
+                http_text = web_config_text(web, web_names, False, cert_name, proxy,
                                             proxy_paths, backend_host, backend_port)
                 apply_web_config(config, web, http_text, reporter)
-            if obtain_certificate(web, domains, email, cert_name, reporter,
+            if obtain_certificate(web, web_names, email, cert_name, reporter,
                                   backend="webroot" if web is not None else "standalone"):
                 tls = True
                 result["tls"] = True
@@ -1625,7 +1648,7 @@ def finalize_restore(config, manifest, target, prepared, options, reporter, prom
             result["certificate_error"] = "no email supplied; skipped certbot issuance"
             reporter.warn(result["certificate_error"])
     if web is not None:
-        text = web_config_text(web, domains, tls, cert_name, proxy, proxy_paths,
+        text = web_config_text(web, web_names, tls, cert_name, proxy, proxy_paths,
                                backend_host, backend_port)
         applied = apply_web_config(config, web, text, reporter)
         result["config"] = applied.get("path")
@@ -1725,6 +1748,7 @@ def setup_server(config, options, reporter):
         proxy = False
     if kind and (options.webserver or "auto") == "auto":
         options.webserver = kind
+    web_names = web_domains(domains)
     if options.dry_run:
         layout = layout_for_host(config)
         tls = has_certificate(_safe_cert_name(domains[0]))
@@ -1738,7 +1762,7 @@ def setup_server(config, options, reporter):
             preview_info = WebServerInfo()
             preview_info.kind = kind
             web_preview = web_config_text(
-                preview_info, domains, False, _safe_cert_name(domains[0]),
+                preview_info, web_names, False, _safe_cert_name(domains[0]),
                 bool(proxy), list(PROXY_PATHS), "127.0.0.1", options.http_port,
             )
         return {
@@ -1787,7 +1811,7 @@ def setup_server(config, options, reporter):
     cert_name = _safe_cert_name(domains[0])
     tls = has_certificate(cert_name)
     if web is not None:
-        http_text = web_config_text(web, domains, False, cert_name, proxy,
+        http_text = web_config_text(web, web_names, False, cert_name, proxy,
                                     list(PROXY_PATHS), "127.0.0.1", options.http_port)
         apply_web_config(config, web, http_text, reporter)
     # Open firewall ports before requesting a certificate: HTTP-01 validation
@@ -1799,7 +1823,7 @@ def setup_server(config, options, reporter):
         options, reporter, prompter,
     )
     if certbot_wanted:
-        tls = obtain_certificate(web, domains, email, cert_name, reporter,
+        tls = obtain_certificate(web, web_names, email, cert_name, reporter,
                                  backend="webroot" if web is not None else "standalone")
     if tls:
         grant_certificate_access(layout, reporter)
@@ -1844,7 +1868,7 @@ def setup_server(config, options, reporter):
         if not controller.start():
             raise ProctorError("Prosody did not start")
     if web is not None:
-        text = web_config_text(web, domains, tls, cert_name, proxy,
+        text = web_config_text(web, web_names, tls, cert_name, proxy,
                                list(PROXY_PATHS), "127.0.0.1", options.http_port)
         applied = apply_web_config(config, web, text, reporter)
     else:

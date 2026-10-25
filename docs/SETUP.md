@@ -38,10 +38,14 @@ It then asks before changing the host:
 After confirmation it installs native packages, writes:
 
 - the Prosody config (`/etc/prosody/prosody.cfg.lua` or the detected/alternate
-  path), including VirtualHosts, MUC components, TLS paths, HTTP/BOSH/WebSocket
-  settings and logging;
+  path), including VirtualHosts, `conference.<domain>` (MUC) and
+  `upload.<domain>` (HTTP file sharing) components, TLS paths,
+  HTTP/BOSH/WebSocket settings and logging;
 - an nginx/Apache vhost named `proctor-xmpp.conf`, with reverse proxy locations
-  and ACME challenge handling;
+  and ACME challenge handling; the certificate request and vhost include the
+  `conference.<domain>` and `upload.<domain>` hostnames, so their DNS records
+  must point at this host;
+
 - Let's Encrypt certificates under `/etc/letsencrypt/live/<cert-name>/`;
 - read/traverse access to Certbot's tree for the Prosody user, using POSIX ACLs
   where available (including `/etc/letsencrypt` itself, not only `live/` and
