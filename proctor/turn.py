@@ -344,8 +344,9 @@ def apply_turnserver_config(turn, secret, realm, cert=None, pkey=None,
         min_port=turn.min_port if turn.exists else DEFAULT_RELAY_MIN,
         max_port=turn.max_port if turn.exists else DEFAULT_RELAY_MAX,
         # A fresh install without a certificate must not try to serve TLS with
-        # coturn's built-in self-signed defaults.
-        no_tls=bool(turn.no_tls or (turn.exists and not turn.cert)),
+        # coturn's built-in self-signed defaults. Prefer any certificate passed
+        # in by setup over the certificate detected in the old config.
+        no_tls=bool(turn.no_tls or not (cert and pkey)),
     )
     if dry_run:
         return text
@@ -565,11 +566,13 @@ def turn_firewalld_service_xml(turn):
     ports = []
     if not turn.no_udp:
         ports.append(("udp", str(turn.port)))
-        ports.append(("udp", str(turn.tls_port)))
+        if not turn.no_tls:
+            ports.append(("udp", str(turn.tls_port)))
         ports.append(("udp", "%d-%d" % (turn.min_port, turn.max_port)))
     if not turn.no_tcp:
         ports.append(("tcp", str(turn.port)))
-        ports.append(("tcp", str(turn.tls_port)))
+        if not turn.no_tls:
+            ports.append(("tcp", str(turn.tls_port)))
     lines = [
         '<?xml version="1.0" encoding="utf-8"?>',
         "<service>",
@@ -687,7 +690,9 @@ def _semanage_exists(port, protocol):
         return False
     proc = run(["semanage", "port", "-l"], check=False)
     text = ((proc.stdout or b"") + (proc.stderr or b"")).decode("utf-8", "replace")
-    pattern = re.compile(r"^turn_port_t\s+%s\s+.*\b%d\b" % (protocol, port), re.M)
+    pattern = re.compile(
+        r"^(?:turn_port_t|unreserved_port_t)\s+%s\s+.*\b%d\b" % (protocol, port),
+        re.M)
     return bool(pattern.search(text))
 
 
@@ -886,6 +891,12 @@ def firewall_state(turn):
     elif firewalld:
         proc = run(["firewall-cmd", "--list-all"], check=False)
         text = ((proc.stdout or b"") + (proc.stderr or b"")).decode("utf-8", "replace")
+        if "coturn" in text:
+            # Proctor opens the coturn service, whose XML contains the ports;
+            # --list-all only prints the service name.
+            info = run(["firewall-cmd", "--info-service=coturn"], check=False)
+            text += ((info.stdout or b"") + (info.stderr or b"")).decode(
+                "utf-8", "replace")
         for port in expected:
             if str(port) not in text:
                 missing.append(port)

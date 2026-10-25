@@ -251,7 +251,11 @@ def _certificate_checks(install, add):
     for directory in install.cert_dirs:
         for pattern in ("*.crt", "*.pem", "*.cer"):
             candidates.extend(glob.glob(os.path.join(directory, pattern)))
-    candidates = sorted(set(item for item in candidates if os.path.isfile(item)))[:50]
+    candidates = sorted(set(
+        item for item in candidates
+        if os.path.isfile(item)
+        and not os.path.basename(item).lower().startswith("privkey")
+        and not item.lower().endswith(".key")))[:50]
     if not candidates:
         add("certificates", CHECK_WARN, "no certificate files found")
         return
