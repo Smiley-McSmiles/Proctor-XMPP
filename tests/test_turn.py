@@ -7,9 +7,10 @@ from types import SimpleNamespace
 from unittest.mock import patch
 
 from proctor.turn import (
-    check_turn_auth, detect_coturn, ensure_turn_firewall, ensure_turn_selinux,
-    parse_turnserver_conf, prosody_turn_settings, patch_prosody_config,
-    turn_checks, turn_firewalld_service_xml, turn_ports, turn_web_config_text,
+    apply_turnserver_config, check_turn_auth, detect_coturn, ensure_turn_firewall,
+    ensure_turn_selinux, firewall_state, parse_turnserver_conf,
+    prosody_turn_settings, patch_prosody_config, turn_checks,
+    turn_firewalld_service_xml, turn_ports, turn_web_config_text,
     turnserver_config_text,
 )
 
@@ -210,6 +211,55 @@ class TurnFirewallSelinuxTests(unittest.TestCase):
         self.assertEqual(result["status"], "opened")
         self.assertIn(["ufw", "allow", "3478/udp"], commands)
         self.assertIn(["ufw", "allow", "49152:65535/udp"], commands)
+
+    def test_firewalld_state_reads_coturn_service_ports(self):
+        def fake_run(command, **kwargs):
+            if command[:2] == ["firewall-cmd", "--state"]:
+                return SimpleNamespace(returncode=0, stdout=b"running\n", stderr=b"")
+            if command[:2] == ["firewall-cmd", "--list-all"]:
+                return SimpleNamespace(
+                    returncode=0,
+                    stdout=b"public (active)\n  services: coturn\n", stderr=b"")
+            if command == ["firewall-cmd", "--info-service=coturn"]:
+                return SimpleNamespace(
+                    returncode=0,
+                    stdout=b"coturn\n  ports: 3478/tcp 3478/udp 5349/tcp\n",
+                    stderr=b"")
+            return SimpleNamespace(returncode=0, stdout=b"", stderr=b"")
+        with patch("proctor.turn.run", fake_run), \
+                patch("proctor.turn.which",
+                      lambda name: "/usr/bin/firewall-cmd" if "firewall" in name else None):
+            state = firewall_state(self._turn())
+        self.assertEqual(state["missing"], [])
+        self.assertTrue(state["ok"])
+
+    def test_semanage_recognizes_unreserved_port_labels(self):
+        def fake_run(command, **kwargs):
+            if command[:3] == ["semanage", "port", "-l"]:
+                return SimpleNamespace(
+                    returncode=0,
+                    stdout=b"unreserved_port_t tcp 3478\n"
+                           b"unreserved_port_t udp 3478\n",
+                    stderr=b"")
+            return SimpleNamespace(returncode=0, stdout=b"", stderr=b"")
+        with patch("proctor.turn.run", fake_run), \
+                patch("proctor.turn.which", lambda name: "/usr/sbin/semanage"):
+            from proctor.turn import _semanage_exists
+            self.assertTrue(_semanage_exists(3478, "tcp"))
+            self.assertTrue(_semanage_exists(3478, "udp"))
+
+    def test_supplied_certificate_enables_turn_tls(self):
+        turn = self._turn()
+        turn.exists = True
+        turn.cert = None
+        turn.pkey = None
+        text = apply_turnserver_config(
+            turn, "secret", "turn.example.com",
+            cert="/etc/letsencrypt/live/example.com/fullchain.pem",
+            pkey="/etc/letsencrypt/live/example.com/privkey.pem",
+            dry_run=True)
+        self.assertNotIn("no-tls", text)
+        self.assertIn("cert=/etc/letsencrypt/live/example.com/fullchain.pem", text)
 
     def test_selinux_labels_custom_ports(self):
         calls = []

@@ -27,7 +27,11 @@
 - Generate `storage = "internal"` for filesystem storage; `internal_hashed`
   is the authentication provider, not a Prosody storage driver. This fixes
   account creation and startup on Prosody 13.
-- 84-case unittest suite.
+- Recognize firewalld's `coturn` service and SELinux `unreserved_port_t`
+  fallback labels in `doctor`; enable TURN over TLS when setup supplies a
+  certificate even if the previous coturn config had none; skip private keys
+  when checking certificate expiry.
+- 87-case unittest suite.
 - Drop the macOS CI job; Linux and FreeBSD cover the supported server paths.
 
 ## 1.0.1 — 2026-10-18
