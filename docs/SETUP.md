@@ -45,6 +45,11 @@ After confirmation it installs native packages, writes:
   and ACME challenge handling; the certificate request and vhost include the
   `conference.<domain>` and `upload.<domain>` hostnames, so their DNS records
   must point at this host;
+- community Prosody modules when an enabled module is not shipped with the
+  installed Prosody: Proctor installs Mercurial, clones
+  `https://hg.prosody.im/prosody-modules/` to
+  `/usr/local/lib/prosody-modules`, and links the needed modules into
+  `/usr/local/lib/prosody-modules-enabled`, which is added to `plugin_paths`;
 
 - Let's Encrypt certificates under `/etc/letsencrypt/live/<cert-name>/`;
 - read/traverse access to Certbot's tree for the Prosody user, using POSIX ACLs

@@ -28,6 +28,8 @@ CERTBOT_LIVE = os.path.join(CERTBOT_ROOT, "live")
 CERTBOT_ARCHIVE = os.path.join(CERTBOT_ROOT, "archive")
 CERTBOT_RENEWAL = os.path.join(CERTBOT_ROOT, "renewal")
 WEBROOT = "/var/www/html"
+COMMUNITY_MODULES_ROOT = "/usr/local/lib/prosody-modules"
+COMMUNITY_MODULES_ENABLED = "/usr/local/lib/prosody-modules-enabled"
 PROXY_PATHS = ("/http-bind", "/xmpp-websocket", "/upload", "/.well-known/host-meta")
 
 
@@ -491,6 +493,12 @@ def prosody_packages(host):
     return ["prosody"]
 
 
+def mercurial_packages(host):
+    if host.package_manager == "emerge":
+        return ["dev-vcs/mercurial"]
+    return ["mercurial"]
+
+
 # ---------------------------------------------------------------------------
 # Provisioning options and layout
 
@@ -640,6 +648,114 @@ def ensure_prosody(config, options, reporter, prompter):
             hint="check the package manager output and whether prosodyctl is in PATH",
         )
     return {"installed": True, "new": True, "planned": False}
+
+
+def ensure_mercurial(config, options, reporter, prompter):
+    """Install Mercurial when community Prosody modules need to be fetched."""
+    if which("hg"):
+        return {"installed": True, "new": False}
+    if options.dry_run:
+        reporter.info("Would install Mercurial (%s)" % config.host.package_manager)
+        return {"installed": False, "planned": True}
+    if options.install_missing is False:
+        reporter.warn("Mercurial is not installed; skipping community Prosody modules")
+        return {"installed": False, "declined": True}
+    if options.install_missing is None:
+        if not prompter.interactive:
+            reporter.warn("Mercurial is not installed; skipping community Prosody modules")
+            return {"installed": False, "declined": True}
+        if not prompter.yes_no(
+                "Mercurial is needed for Prosody community modules. Install it now?",
+                default=True):
+            reporter.warn("Mercurial is not installed; skipping community Prosody modules")
+            return {"installed": False, "declined": True}
+    try:
+        PackageInstaller(config.host, reporter, dry_run=options.dry_run).install(
+            mercurial_packages(config.host), why="Mercurial")
+    except Exception as exc:
+        reporter.warn("could not install Mercurial: %s" % exc)
+        return {"installed": False, "error": str(exc)}
+    if not which("hg"):
+        reporter.warn("Mercurial was installed but hg is not in PATH")
+        return {"installed": False, "error": "hg not found"}
+    return {"installed": True, "new": True}
+
+
+def _config_module_names(config_text):
+    names = set()
+    for block in re.findall(
+            r"(?ms)^\s*modules_enabled\s*=\s*\{(.*?)\}", config_text):
+        names.update(re.findall(r'"([A-Za-z0-9_]+)"', block))
+    names.update(re.findall(
+        r'(?m)^Component\s+"[^"]+"\s+"([^"]+)"', config_text))
+    return names
+
+
+def _find_community_module(root, name):
+    candidates = [
+        os.path.join(root, "mod_" + name),
+        os.path.join(root, "mod_" + name + ".lua"),
+        os.path.join(root, name, "mod_" + name + ".lua"),
+        os.path.join(root, name + ".lua"),
+    ]
+    for candidate in candidates:
+        if os.path.lexists(candidate):
+            return candidate
+    return None
+
+
+def ensure_community_modules(config, options, reporter, prompter, config_text,
+                             install_mercurial=False):
+    """Fetch/link community modules missing from Prosody's built-in path."""
+    required = _config_module_names(config_text)
+    available = _available_prosody_modules()
+    missing = sorted(name for name in required if name not in available)
+    mercurial = None
+    if install_mercurial:
+        mercurial = ensure_mercurial(config, options, reporter, prompter)
+    if not missing:
+        return {"missing": [], "linked": [], "mercurial": mercurial}
+    if mercurial is None:
+        mercurial = ensure_mercurial(config, options, reporter, prompter)
+    result = {"missing": missing, "linked": [], "mercurial": mercurial}
+    if not mercurial.get("installed"):
+        return result
+    root = COMMUNITY_MODULES_ROOT
+    enabled = COMMUNITY_MODULES_ENABLED
+    ensure_dir(os.path.dirname(root), mode=0o755)
+    if not os.path.isdir(os.path.join(root, ".hg")):
+        if os.path.exists(root):
+            reporter.warn("%s exists but is not a Mercurial checkout" % root)
+            return result
+        reporter.step("Fetching Prosody community modules")
+        try:
+            run(["hg", "clone", "https://hg.prosody.im/prosody-modules/", root],
+                timeout=None)
+        except Exception as exc:
+            reporter.warn("could not clone prosody-modules: %s" % exc)
+            return result
+    else:
+        run(["hg", "pull", "--update"], cwd=root, check=False, timeout=None)
+    ensure_dir(enabled, mode=0o755)
+    for name in missing:
+        source = _find_community_module(root, name)
+        if source is None:
+            reporter.warn("community module not found: %s" % name)
+            continue
+        target = os.path.join(enabled, os.path.basename(source.rstrip("/")))
+        try:
+            if os.path.lexists(target):
+                if not os.path.islink(target):
+                    reporter.warn("module path is not a symlink: %s" % target)
+                    continue
+                os.unlink(target)
+            os.symlink(source, target)
+            result["linked"].append(name)
+        except OSError as exc:
+            reporter.warn("could not link community module %s: %s" % (name, exc))
+    if result["linked"]:
+        reporter.info("Enabled community modules: %s" % ", ".join(result["linked"]))
+    return result
 
 
 def pick_web_kind(existing, prompter):
@@ -1147,6 +1263,7 @@ def _available_prosody_modules():
             "/usr/local/lib/prosody/modules",
             "/usr/pkg/lib/prosody/modules",
             "/opt/prosody/lib/prosody/modules",
+            COMMUNITY_MODULES_ENABLED,
     ):
         try:
             names = os.listdir(directory)
@@ -1206,6 +1323,7 @@ def prosody_config_text(layout, domains, admin, tls, cert_name, storage="interna
         "",
         "admins = { %s }" % _lua_string(admin),
         "data_path = %s" % _lua_string(layout.data_dir),
+        "plugin_paths = { %s }" % _lua_string(COMMUNITY_MODULES_ENABLED),
         "authentication = \"internal_hashed\"",
     ]
     if storage in ("sql", "sqlite", "sqlite3"):
@@ -1838,6 +1956,7 @@ def setup_server(config, options, reporter):
                 "webserver": web_packages(host, kind) if kind else [],
                 "certbot": certbot_packages(host) if certbot_wanted else [],
                 "turn": turn_packages(host) if turn_wanted else [],
+                "mercurial": mercurial_packages(host) if not which("hg") else [],
             },
             "prosody_config_preview": config_text,
             "web_config_preview": web_preview,
@@ -1918,6 +2037,10 @@ def setup_server(config, options, reporter):
     atomic_write(layout.config_file, config_text.encode("utf-8"), mode=0o644)
     _chown_path(layout.config_file, 0, 0)
     _relabel([layout.config_dir, layout.data_dir, layout.log_dir])
+    modules_result = ensure_community_modules(
+        config, options, reporter, prompter, config_text,
+        install_mercurial=True,
+    )
     reporter.step("Checking generated Prosody configuration")
     from .service import validate_prosody_config
     status, output = validate_prosody_config(layout.config_file)
@@ -1977,6 +2100,7 @@ def setup_server(config, options, reporter):
         "admin_created": admin_result,
         "firewall": firewall,
         "turn": turn_result,
+        "modules": modules_result,
     }
 
 
@@ -2066,6 +2190,7 @@ def _prepare_prosody_dirs(layout, reporter):
     ensure_dir(layout.config_dir, mode=0o755)
     ensure_dir(layout.data_dir, mode=0o750)
     ensure_dir(layout.log_dir, mode=0o750)
+    ensure_dir(COMMUNITY_MODULES_ENABLED, mode=0o755)
     for directory in layout.cert_dirs:
         ensure_dir(directory, mode=0o755)
     uid = uid_for(layout.user)
