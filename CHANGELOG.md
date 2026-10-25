@@ -1,5 +1,15 @@
 # Changelog
 
+## Unreleased
+
+- Generate Prosody configuration with current core module names
+  (`saslauth`, `http_file_share`) and options, falling back to the legacy
+  `sasl`/`http_upload` names when only those are installed. This fixes config
+  checks on Prosody 0.12+/13 and removes deprecated `cross_domain_*` and
+  `legacy_ssl_ports` options.
+- Open firewall ports before certbot runs so HTTP-01 validation is not blocked
+  by an active UFW/firewalld setup.
+
 ## 1.0.1 — 2026-10-18
 
 - Refresh package indexes before native package installation on apt, dnf/yum,
