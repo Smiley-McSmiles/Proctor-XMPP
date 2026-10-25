@@ -517,12 +517,18 @@ class ProsodyInstall(object):
         available = set()
         for directory in self.module_dirs():
             try:
-                for name in os.listdir(directory):
-                    if name.endswith(".lua"):
-                        stem = name[:-4]
-                        available.add(stem[4:] if stem.startswith("mod_") else stem)
+                entries = os.listdir(directory)
             except OSError:
                 continue
+            for name in entries:
+                if name.endswith(".lua"):
+                    stem = name[:-4]
+                    available.add(stem[4:] if stem.startswith("mod_") else stem)
+                elif os.path.isdir(os.path.join(directory, name)) and os.path.isfile(
+                        os.path.join(directory, name, "mod_%s.lua" % name)):
+                    # Multi-file modules such as muc/ and pubsub/ keep their
+                    # main module inside a directory named after the module.
+                    available.add(name)
         return sorted(available)
 
     def missing_modules(self):
