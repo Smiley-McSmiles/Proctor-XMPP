@@ -4,8 +4,8 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="color-scheme" content="dark light">
-<title>Join sonder.guru on Ward</title>
-<meta name="description" content="You have been invited to sonder.guru. Chat securely with Ward on Linux or Ward for Android.">
+<title>Join this server on Ward</title>
+<meta name="description" content="You have been invited. Chat securely with Ward on Linux or Ward for Android.">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 128 128'%3E%3Cpath d='M64 8 14 26v34c0 31 21.5 56 50 64 28.5-8 50-33 50-64V26z' fill='%231a5fb4'/%3E%3C/svg%3E">
 <style>
   :root {
@@ -387,6 +387,13 @@
   token = decodeURIComponent(token || "").trim();
   var host = window.location.hostname || "this server";
   var label = host.replace(/^www\./, "");
+  document.title = "Join " + label + " on Ward";
+  var description = document.querySelector('meta[name="description"]');
+  if (description) {
+    description.setAttribute("content",
+      "You have been invited to " + label +
+      ". Chat securely with Ward on Linux or Ward for Android.");
+  }
   ["host-name", "host-chip", "chat-host", "footer-host"].forEach(function (id) {
     var el = document.getElementById(id);
     if (el) el.textContent = label;
