@@ -3,7 +3,7 @@
 [![Tests](https://github.com/Smiley-McSmiles/Proctor-XMPP/actions/workflows/tests.yml/badge.svg?branch=main)](https://github.com/Smiley-McSmiles/Proctor-XMPP/actions/workflows/tests.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![Python 3.8+](https://img.shields.io/badge/python-3.8%2B-blue.svg)](https://www.python.org/)
-[![Version](https://img.shields.io/badge/version-1.0.2-informational.svg)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-1.0.3-informational.svg)](CHANGELOG.md)
 [![Platforms](https://img.shields.io/badge/platform-Linux%20%7C%20BSD-lightgrey.svg)](#platform-support)
 
 **Proctor** is a dependency-free command-line tool that backs up, restores and
@@ -19,7 +19,7 @@ reproduce the proxy/certificate shape recorded in a backup.
 
 - **Repository:** <https://github.com/Smiley-McSmiles/Proctor-XMPP>
 - **Issues:** <https://github.com/Smiley-McSmiles/Proctor-XMPP/issues>
-- **Version:** 1.0.2
+- **Version:** 1.0.3
 
 [Install](#install) · [Quick start](#quick-start) · [Setup a new server](#set-up-a-new-server-interactively) · [Migrate](docs/MIGRATION.md) · [Commands](#commands) · [Documentation](#documentation)
 
@@ -532,6 +532,7 @@ retention.
 ## Documentation
 
 - [docs/SETUP.md](docs/SETUP.md) — interactive Prosody/nginx/Apache/certbot setup
+- [docs/HOWTO-CUSTOM-INVITE-ALMA.md](docs/HOWTO-CUSTOM-INVITE-ALMA.md) — custom invite page with `/opt/prosody-modules` on AlmaLinux
 - [docs/TURN.md](docs/TURN.md) — coturn, TURN for calls, firewall/SELinux checks
 - [docs/PACKAGING.md](docs/PACKAGING.md) — native packages, tarball and release artifacts
 - [docs/MIGRATION.md](docs/MIGRATION.md) — server migration runbook

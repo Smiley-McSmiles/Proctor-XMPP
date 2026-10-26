@@ -51,7 +51,7 @@ hashes and ownership have been collected.
 {
   "format": "proctor-backup",
   "format_version": 1,
-  "proctor_version": "1.0.2",
+  "proctor_version": "1.0.3",
   "id": "20261018T193148Z-a1d0a2",
   "created_at": "2026-10-18T19:31:48Z",
   "source": {

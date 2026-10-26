@@ -2,17 +2,24 @@
 
 ## Unreleased
 
+## 1.0.3 — 2026-10-25
+
 - Enable web-based account invitations with `invites_page`,
   `invites_register_web`, `register_apps` and `password_policy`, proxy
   `/invites_page` and `/register`, and set `http_external_url` for correct
   HTTPS invite links.
 - Serve a custom Ward invitation landing page recommending Ward for Linux/BSD
   and Ward for Android at `/ward-invite`, with inline username/password
-  registration and a styled success screen.
+  registration, a styled success screen and no hardcoded server domain.
+- Add `docs/HOWTO-CUSTOM-INVITE-ALMA.md`, covering a host with community
+  modules in `/opt/prosody-modules`, nginx, SELinux and setup-safe module
+  paths.
 - Proxy `/register` through the web server even when general HTTP/BOSH/upload
   proxying is disabled, so web invitation links work in direct-Prosody mode.
 - Reuse a pre-existing certificate from `/etc/letsencrypt/live/` instead of
   asking certbot to reissue it when setup is run again.
+- Remove the domain-specific example landing page and nginx vhost from
+  `contrib/`; the invite page and generic how-to cover that use case.
 
 ## 1.0.2 — 2026-10-25
 

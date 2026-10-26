@@ -6,6 +6,7 @@ Repository: <https://github.com/Smiley-McSmiles/Proctor-XMPP>
 - [../CONTRIBUTING.md](../CONTRIBUTING.md) — development and pull-request guide
 - [../SECURITY.md](../SECURITY.md) — private vulnerability reporting
 - [SETUP.md](SETUP.md) — interactive Prosody/nginx/Apache/certbot setup and migration provisioning
+- [HOWTO-CUSTOM-INVITE-ALMA.md](HOWTO-CUSTOM-INVITE-ALMA.md) — custom Ward invite page with `/opt/prosody-modules` and nginx on AlmaLinux
 - [TURN.md](TURN.md) — coturn, mod_turn_external, ACME vhost, firewall and SELinux checks
 - [PACKAGING.md](PACKAGING.md) — native packages, tarball, recipes and release artifacts
 - [PLAN.md](PLAN.md) — architecture, scope, cross-platform design and test plan

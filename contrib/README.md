@@ -17,8 +17,3 @@
 #
 # The scheduled job normally stops Prosody briefly. If that is unacceptable:
 #   30 3 * * * root /usr/local/bin/proctor backup --live --quiet
-
-
-## Example landing page
-
-`contrib/sonder.guru/` contains a self-contained landing page and an example nginx vhost for a host that also runs Proctor/Prosody.
