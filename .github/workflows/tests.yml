@@ -68,7 +68,7 @@ jobs:
           PREFIX="$tmp/usr" "$tmp"/proctor-xmpp-*/install.sh
           "$tmp/usr/bin/proctor" version
       - name: Upload artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: proctor-packages
           path: dist/
